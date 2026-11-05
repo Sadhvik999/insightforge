@@ -1,22 +1,27 @@
 from app.data_loader import load_dataset
 from app.inspector import inspect_dataset
 
-# Load dataset
 df = load_dataset("../data/Sample - Superstore.csv")
 
-# Inspect dataset
 report = inspect_dataset(df)
 
-print("===== DATASET INSPECTION REPORT =====")
+print("INSIGHTFORGE DATASET REPORT")
 
-print("\nRows:", report["rows"])
+print("\nDataset dimensions:")
+print("Rows:", report["rows"])
 print("Columns:", report["columns"])
 
-print("\nMissing Values:")
-for column, count in report["missing_values"].items():
-    print(column, ":", count)
+print("\nMissing values:")
+print(report["missing_values"])
 
-print("\nDuplicate Rows:", report["duplicate_rows"])
+print("\nDuplicate rows:")
+print(report["duplicate_rows"])
 
-print("\nBasic Statistics:")
-print(report["statistics"])
+print("\nNumerical analysis:")
+print(report["numerical_analysis"])
+
+print("\nCategorical analysis:")
+print(report["categorical_analysis"])
+
+print("\nCorrelation analysis:")
+print(report["correlation_analysis"])

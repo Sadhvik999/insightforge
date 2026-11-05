@@ -1,6 +1,15 @@
+
+from .analyzer import (
+    numerical_summary,
+    categorical_summary,
+    correlation_analysis
+)
+
+
 def inspect_dataset(df):
     """
-    Inspect a dataset and return its basic information.
+    Inspect a dataset and return its basic information
+    along with analytical summaries.
     """
 
     report = {}
@@ -23,5 +32,21 @@ def inspect_dataset(df):
 
     # 6. Basic statistics
     report["statistics"] = df.describe().to_dict()
+
+    # 7. Numerical analysis
+    report["numerical_analysis"] = numerical_summary(df).to_dict()
+
+    # 8. Categorical analysis
+    report["categorical_analysis"] = categorical_summary(df)
+
+    # 9. Correlation analysis
+    numeric_columns = df.select_dtypes(include="number").columns.tolist()
+
+    if len(numeric_columns) >= 2:
+        report["correlation_analysis"] = (
+            correlation_analysis(df).to_dict()
+        )
+    else:
+        report["correlation_analysis"] = {}
 
     return report
