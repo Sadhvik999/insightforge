@@ -1,4 +1,3 @@
-
 import json
 import requests
 import pandas as pd
@@ -12,11 +11,8 @@ from app.tools import (
 
 from app.analyzer import correlation_analysis
 from app.visualizer import create_visualization
+from app.response_generator import generate_analysis_response
 
-
-# --------------------------------------------------
-# CONFIGURATION
-# --------------------------------------------------
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
 MODEL_NAME = "qwen2.5:1.5b"
@@ -39,7 +35,6 @@ def create_tools(df):
         raise ValueError("Dataset has no columns.")
 
     tools = [
-
         {
             "type": "function",
             "function": {
@@ -52,7 +47,6 @@ def create_tools(df):
                 }
             }
         },
-
         {
             "type": "function",
             "function": {
@@ -65,7 +59,6 @@ def create_tools(df):
                 }
             }
         },
-
         {
             "type": "function",
             "function": {
@@ -89,10 +82,7 @@ def create_tools(df):
                         },
                         "value": {
                             "type": [
-                                "string",
-                                "number",
-                                "array",
-                                "null"
+                                "string", "number", "array", "null"
                             ]
                         }
                     },
@@ -100,7 +90,6 @@ def create_tools(df):
                 }
             }
         },
-
         {
             "type": "function",
             "function": {
@@ -120,20 +109,16 @@ def create_tools(df):
                         "operation": {
                             "type": "string",
                             "enum": [
-                                "mean", "sum", "min",
-                                "max", "count"
+                                "mean", "sum", "min", "max", "count"
                             ]
                         }
                     },
                     "required": [
-                        "group_column",
-                        "target_column",
-                        "operation"
+                        "group_column", "target_column", "operation"
                     ]
                 }
             }
         },
-
         {
             "type": "function",
             "function": {
@@ -151,20 +136,13 @@ def create_tools(df):
                         },
                         "method": {
                             "type": "string",
-                            "enum": [
-                                "pearson",
-                                "spearman",
-                                "kendall"
-                            ]
+                            "enum": ["pearson", "spearman", "kendall"]
                         }
                     },
                     "required": ["method"]
                 }
             }
         },
-
-        # TOOL 6: Visualization
-
         {
             "type": "function",
             "function": {
@@ -180,12 +158,7 @@ def create_tools(df):
                     "properties": {
                         "chart_type": {
                             "type": "string",
-                            "enum": [
-                                "bar",
-                                "line",
-                                "histogram",
-                                "scatter"
-                            ]
+                            "enum": ["bar", "line", "histogram", "scatter"]
                         },
                         "x_column": {
                             "type": "string",
@@ -199,10 +172,7 @@ def create_tools(df):
                             "type": ["string", "null"]
                         }
                     },
-                    "required": [
-                        "chart_type",
-                        "x_column"
-                    ]
+                    "required": ["chart_type", "x_column"]
                 }
             }
         }
@@ -287,17 +257,11 @@ def execute_tool(df, tool_call):
     if not isinstance(arguments, dict):
         raise ValueError("Invalid tool arguments.")
 
-    # TOOL 1: Dataset summary
-
     if function_name == "get_dataset_summary":
         return get_dataset_summary(df)
 
-    # TOOL 2: Column information
-
     elif function_name == "get_column_info":
         return get_column_info(df)
-
-    # TOOL 3: Filter data
 
     elif function_name == "filter_data":
 
@@ -330,8 +294,6 @@ def execute_tool(df, tool_call):
 
         return result_df.to_dict(orient="records")
 
-    # TOOL 4: Aggregation
-
     elif function_name == "aggregate_data":
 
         group_column = arguments.get("group_column")
@@ -357,8 +319,6 @@ def execute_tool(df, tool_call):
         )
 
         return result_df.to_dict(orient="records")
-
-    # TOOL 5: Correlation analysis
 
     elif function_name == "correlation_analysis":
 
@@ -398,8 +358,6 @@ def execute_tool(df, tool_call):
 
         return result_df.to_dict()
 
-    # TOOL 6: Visualization
-
     elif function_name == "visualize_data":
 
         chart_type = arguments.get("chart_type")
@@ -419,6 +377,7 @@ def execute_tool(df, tool_call):
             raise ValueError("Invalid y column.")
 
         if chart_type in ["bar", "line", "scatter"]:
+
             if y_column is None:
                 raise ValueError(
                     f"{chart_type} chart requires a y column."
@@ -430,12 +389,14 @@ def execute_tool(df, tool_call):
                 )
 
         if chart_type == "histogram":
+
             if not pd.api.types.is_numeric_dtype(df[x_column]):
                 raise ValueError(
                     "Histogram requires a numerical x column."
                 )
 
         if chart_type == "scatter":
+
             if not pd.api.types.is_numeric_dtype(df[x_column]):
                 raise ValueError(
                     "Scatter chart requires a numerical x column."
@@ -448,8 +409,6 @@ def execute_tool(df, tool_call):
             y_column=y_column,
             title=title
         )
-
-        # Convert Plotly figure to JSON-compatible dictionary.
 
         figure_data = json.loads(fig.to_json())
 
@@ -479,7 +438,8 @@ def analyze_dataset(df, question):
     2. Ask Qwen to select a tool.
     3. Validate the selected tool.
     4. Execute Python analysis.
-    5. Return structured results.
+    5. Generate a human-readable explanation.
+    6. Return structured results.
     """
 
     if df.empty:
@@ -511,14 +471,28 @@ def analyze_dataset(df, question):
 
     tool_call = tool_calls[0]
 
+    selected_tool = tool_call["function"]["name"]
+    arguments = tool_call["function"]["arguments"]
+
+    # Execute the actual analysis using Python.
     result = execute_tool(
         df,
         tool_call
     )
 
+    # Generate a readable explanation from the results.
+    explanation = generate_analysis_response(
+        question=question,
+        selected_tool=selected_tool,
+        arguments=arguments,
+        results=result
+    )
+
     return {
         "question": question,
-        "selected_tool": tool_call["function"]["name"],
-        "arguments": tool_call["function"]["arguments"],
+        "selected_tool": selected_tool,
+        "arguments": arguments,
+        "summary": explanation["summary"],
+        "key_findings": explanation["key_findings"],
         "results": result
     }
