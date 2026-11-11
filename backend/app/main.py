@@ -1,5 +1,5 @@
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse
 
 import pandas as pd
@@ -8,6 +8,7 @@ import math
 
 from app.inspector import inspect_dataset
 from app.cleaner import clean_dataset
+from app.agent import analyze_dataset
 
 
 app = FastAPI(
@@ -115,13 +116,10 @@ async def clean_file(file: UploadFile = File(...)):
         )
 
     try:
-        # Read uploaded CSV
         df = pd.read_csv(file.file, encoding="latin1")
 
-        # Clean dataset using existing cleaning engine
         cleaned_df, cleaning_report = clean_dataset(df)
 
-        # Prepare response
         response = {
             "original_rows": len(df),
             "cleaned_rows": len(cleaned_df),
@@ -132,6 +130,77 @@ async def clean_file(file: UploadFile = File(...)):
         safe_response = make_json_safe(response)
 
         return JSONResponse(content=safe_response)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+    finally:
+        await file.close()
+
+
+# --------------------------------------------------
+# AI DATA ANALYSIS ENDPOINT
+# --------------------------------------------------
+
+@app.post("/analyze")
+async def analyze_file(
+    question: str = Form(...),
+    file: UploadFile = File(...)
+):
+
+    if not file.filename.lower().endswith(".csv"):
+        raise HTTPException(
+            status_code=400,
+            detail="Only CSV files are supported"
+        )
+
+    if not question.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Question cannot be empty."
+        )
+
+    try:
+        # 1. Read uploaded CSV
+        df = pd.read_csv(
+            file.file,
+            encoding="latin1"
+        )
+
+        if df.empty:
+            raise HTTPException(
+                status_code=400,
+                detail="Uploaded dataset is empty."
+            )
+
+        # 2. Run AI agent
+        result = analyze_dataset(
+            df,
+            question
+        )
+
+        # 3. Convert results into JSON-safe values
+        safe_result = make_json_safe(result)
+
+        return JSONResponse(content=safe_result)
+
+    except HTTPException:
+        raise
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=str(e)
+        )
 
     except Exception as e:
         raise HTTPException(
