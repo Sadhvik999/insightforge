@@ -1,8 +1,17 @@
 
+import json
 import requests
 import pandas as pd
 
-from app.tools import aggregate_data
+from app.tools import (
+    get_column_info,
+    get_dataset_summary,
+    filter_data,
+    aggregate_data
+)
+
+from app.analyzer import correlation_analysis
+from app.visualizer import create_visualization
 
 
 # --------------------------------------------------
@@ -18,9 +27,7 @@ MODEL_NAME = "qwen2.5:1.5b"
 # --------------------------------------------------
 
 def create_tools(df):
-    """
-    Create tool definitions based on the uploaded dataset.
-    """
+    """Create available AI tools based on dataset columns."""
 
     all_columns = df.columns.tolist()
 
@@ -31,20 +38,74 @@ def create_tools(df):
     if not all_columns:
         raise ValueError("Dataset has no columns.")
 
-    if not numerical_columns:
-        raise ValueError(
-            "Dataset must contain at least one numerical column."
-        )
-
     tools = [
+
+        {
+            "type": "function",
+            "function": {
+                "name": "get_dataset_summary",
+                "description": "Get an overall dataset summary including rows, columns, missing values and duplicates.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            }
+        },
+
+        {
+            "type": "function",
+            "function": {
+                "name": "get_column_info",
+                "description": "Get data types, missing values and unique values for every column.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            }
+        },
+
+        {
+            "type": "function",
+            "function": {
+                "name": "filter_data",
+                "description": "Filter dataset rows using a column, comparison operator and value.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "column": {
+                            "type": "string",
+                            "enum": all_columns
+                        },
+                        "operator": {
+                            "type": "string",
+                            "enum": [
+                                "eq", "ne", "gt", "gte",
+                                "lt", "lte", "contains",
+                                "in", "not_in",
+                                "is_null", "not_null"
+                            ]
+                        },
+                        "value": {
+                            "type": [
+                                "string",
+                                "number",
+                                "array",
+                                "null"
+                            ]
+                        }
+                    },
+                    "required": ["column", "operator"]
+                }
+            }
+        },
+
         {
             "type": "function",
             "function": {
                 "name": "aggregate_data",
-                "description": (
-                    "Group a dataset by a column and calculate "
-                    "mean, sum, min, max, or count."
-                ),
+                "description": "Group the dataset by a column and calculate mean, sum, min, max or count.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -54,16 +115,13 @@ def create_tools(df):
                         },
                         "target_column": {
                             "type": "string",
-                            "enum": numerical_columns
+                            "enum": all_columns
                         },
                         "operation": {
                             "type": "string",
                             "enum": [
-                                "mean",
-                                "sum",
-                                "min",
-                                "max",
-                                "count"
+                                "mean", "sum", "min",
+                                "max", "count"
                             ]
                         }
                     },
@@ -71,6 +129,79 @@ def create_tools(df):
                         "group_column",
                         "target_column",
                         "operation"
+                    ]
+                }
+            }
+        },
+
+        {
+            "type": "function",
+            "function": {
+                "name": "correlation_analysis",
+                "description": "Calculate correlations between numerical dataset columns.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "columns": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": numerical_columns
+                            }
+                        },
+                        "method": {
+                            "type": "string",
+                            "enum": [
+                                "pearson",
+                                "spearman",
+                                "kendall"
+                            ]
+                        }
+                    },
+                    "required": ["method"]
+                }
+            }
+        },
+
+        # TOOL 6: Visualization
+
+        {
+            "type": "function",
+            "function": {
+                "name": "visualize_data",
+                "description": (
+                    "Create a chart from the dataset. "
+                    "Choose bar for category comparisons, "
+                    "line for trends, histogram for distributions, "
+                    "and scatter for relationships between two numerical columns."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "chart_type": {
+                            "type": "string",
+                            "enum": [
+                                "bar",
+                                "line",
+                                "histogram",
+                                "scatter"
+                            ]
+                        },
+                        "x_column": {
+                            "type": "string",
+                            "enum": all_columns
+                        },
+                        "y_column": {
+                            "type": ["string", "null"],
+                            "enum": all_columns + [None]
+                        },
+                        "title": {
+                            "type": ["string", "null"]
+                        }
+                    },
+                    "required": [
+                        "chart_type",
+                        "x_column"
                     ]
                 }
             }
@@ -85,9 +216,7 @@ def create_tools(df):
 # --------------------------------------------------
 
 def ask_qwen(df, question, tools):
-    """
-    Send the user's question and dataset schema to Qwen.
-    """
+    """Send the question and dataset schema to Qwen."""
 
     schema = {
         "columns": df.columns.tolist(),
@@ -106,10 +235,13 @@ def ask_qwen(df, question, tools):
                 "role": "system",
                 "content": (
                     "You are an AI data analyst. "
-                    "Understand the user's question and select "
-                    "the appropriate available Python tool. "
+                    "Choose the most appropriate available Python tool. "
                     "Use exact column names from the dataset. "
                     "Never invent column names or results. "
+                    "Use only one tool per question. "
+                    "For visualization questions, use visualize_data. "
+                    "For histogram, provide only x_column. "
+                    "For bar, line and scatter, provide both x_column and y_column. "
                     f"Dataset schema: {schema}"
                 )
             },
@@ -147,53 +279,192 @@ def ask_qwen(df, question, tools):
 # --------------------------------------------------
 
 def execute_tool(df, tool_call):
-    """
-    Validate Qwen's tool call and execute an approved Python tool.
-    """
+    """Validate and execute an approved Python tool."""
 
     function_name = tool_call["function"]["name"]
     arguments = tool_call["function"]["arguments"]
 
-    if function_name != "aggregate_data":
+    if not isinstance(arguments, dict):
+        raise ValueError("Invalid tool arguments.")
+
+    # TOOL 1: Dataset summary
+
+    if function_name == "get_dataset_summary":
+        return get_dataset_summary(df)
+
+    # TOOL 2: Column information
+
+    elif function_name == "get_column_info":
+        return get_column_info(df)
+
+    # TOOL 3: Filter data
+
+    elif function_name == "filter_data":
+
+        column = arguments.get("column")
+        operator = arguments.get("operator")
+        value = arguments.get("value")
+
+        if column not in df.columns:
+            raise ValueError("Invalid filter column.")
+
+        if operator not in [
+            "eq", "ne", "gt", "gte", "lt", "lte",
+            "contains", "in", "not_in",
+            "is_null", "not_null"
+        ]:
+            raise ValueError("Invalid filter operator.")
+
+        if pd.api.types.is_numeric_dtype(df[column]):
+            if operator in ["in", "not_in"] and isinstance(value, list):
+                value = [float(v) for v in value]
+            elif operator not in ["is_null", "not_null"]:
+                value = float(value)
+
+        result_df = filter_data(
+            df,
+            column=column,
+            operator=operator,
+            value=value
+        )
+
+        return result_df.to_dict(orient="records")
+
+    # TOOL 4: Aggregation
+
+    elif function_name == "aggregate_data":
+
+        group_column = arguments.get("group_column")
+        target_column = arguments.get("target_column")
+        operation = arguments.get("operation")
+
+        if group_column not in df.columns:
+            raise ValueError("Invalid group column.")
+
+        if target_column not in df.columns:
+            raise ValueError("Invalid target column.")
+
+        if operation not in [
+            "mean", "sum", "min", "max", "count"
+        ]:
+            raise ValueError("Invalid aggregation operation.")
+
+        result_df = aggregate_data(
+            df,
+            group_column=group_column,
+            target_column=target_column,
+            operation=operation
+        )
+
+        return result_df.to_dict(orient="records")
+
+    # TOOL 5: Correlation analysis
+
+    elif function_name == "correlation_analysis":
+
+        columns = arguments.get("columns")
+        method = arguments.get("method", "pearson")
+
+        if method not in ["pearson", "spearman", "kendall"]:
+            raise ValueError("Invalid correlation method.")
+
+        numerical_columns = df.select_dtypes(
+            include="number"
+        ).columns.tolist()
+
+        if columns is not None:
+
+            if not isinstance(columns, list):
+                raise ValueError("Columns must be a list.")
+
+            if any(column not in numerical_columns for column in columns):
+                raise ValueError("Invalid numerical column.")
+
+            if len(columns) < 2:
+                raise ValueError(
+                    "At least two numerical columns are required."
+                )
+
+        elif len(numerical_columns) < 2:
+            raise ValueError(
+                "At least two numerical columns are required."
+            )
+
+        result_df = correlation_analysis(
+            df,
+            columns=columns,
+            method=method
+        )
+
+        return result_df.to_dict()
+
+    # TOOL 6: Visualization
+
+    elif function_name == "visualize_data":
+
+        chart_type = arguments.get("chart_type")
+        x_column = arguments.get("x_column")
+        y_column = arguments.get("y_column")
+        title = arguments.get("title")
+
+        if chart_type not in [
+            "bar", "line", "histogram", "scatter"
+        ]:
+            raise ValueError("Invalid chart type.")
+
+        if x_column not in df.columns:
+            raise ValueError("Invalid x column.")
+
+        if y_column is not None and y_column not in df.columns:
+            raise ValueError("Invalid y column.")
+
+        if chart_type in ["bar", "line", "scatter"]:
+            if y_column is None:
+                raise ValueError(
+                    f"{chart_type} chart requires a y column."
+                )
+
+            if not pd.api.types.is_numeric_dtype(df[y_column]):
+                raise ValueError(
+                    "The y column must be numerical for this chart."
+                )
+
+        if chart_type == "histogram":
+            if not pd.api.types.is_numeric_dtype(df[x_column]):
+                raise ValueError(
+                    "Histogram requires a numerical x column."
+                )
+
+        if chart_type == "scatter":
+            if not pd.api.types.is_numeric_dtype(df[x_column]):
+                raise ValueError(
+                    "Scatter chart requires a numerical x column."
+                )
+
+        fig = create_visualization(
+            df,
+            chart_type=chart_type,
+            x_column=x_column,
+            y_column=y_column,
+            title=title
+        )
+
+        # Convert Plotly figure to JSON-compatible dictionary.
+
+        figure_data = json.loads(fig.to_json())
+
+        return {
+            "chart_type": chart_type,
+            "x_column": x_column,
+            "y_column": y_column,
+            "title": title,
+            "figure": figure_data
+        }
+
+    else:
         raise ValueError(
             f"Unsupported tool: {function_name}"
         )
-
-    group_column = arguments.get("group_column")
-    target_column = arguments.get("target_column")
-    operation = arguments.get("operation")
-
-    if group_column not in df.columns:
-        raise ValueError("Invalid group column.")
-
-    if target_column not in df.columns:
-        raise ValueError("Invalid target column.")
-
-    allowed_operations = [
-        "mean",
-        "sum",
-        "min",
-        "max",
-        "count"
-    ]
-
-    if operation not in allowed_operations:
-        raise ValueError("Invalid aggregation operation.")
-
-    if operation in ["mean", "sum", "min", "max"]:
-        if not pd.api.types.is_numeric_dtype(df[target_column]):
-            raise ValueError(
-                "Target column must be numerical."
-            )
-
-    result_df = aggregate_data(
-        df,
-        group_column=group_column,
-        target_column=target_column,
-        operation=operation
-    )
-
-    return result_df
 
 
 # --------------------------------------------------
@@ -206,7 +477,7 @@ def analyze_dataset(df, question):
 
     1. Create tools dynamically.
     2. Ask Qwen to select a tool.
-    3. Validate the tool call.
+    3. Validate the selected tool.
     4. Execute Python analysis.
     5. Return structured results.
     """
@@ -233,7 +504,6 @@ def analyze_dataset(df, question):
             "for this question."
         )
 
-    # This version supports one tool call per question.
     if len(tool_calls) != 1:
         raise ValueError(
             "Multiple tool calls are not supported yet."
@@ -241,7 +511,7 @@ def analyze_dataset(df, question):
 
     tool_call = tool_calls[0]
 
-    result_df = execute_tool(
+    result = execute_tool(
         df,
         tool_call
     )
@@ -250,5 +520,5 @@ def analyze_dataset(df, question):
         "question": question,
         "selected_tool": tool_call["function"]["name"],
         "arguments": tool_call["function"]["arguments"],
-        "results": result_df.to_dict(orient="records")
+        "results": result
     }
