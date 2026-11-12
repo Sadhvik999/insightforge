@@ -11,7 +11,8 @@ from app.tools import (
 
 from app.analyzer import correlation_analysis
 from app.visualizer import create_visualization
-from app.response_generator import generate_analysis_response
+from app.manager import run_manager
+from app.response_generator import generate_multi_analysis_response
 
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
@@ -430,16 +431,17 @@ def execute_tool(df, tool_call):
 # MAIN DATASET ANALYSIS FUNCTION
 # --------------------------------------------------
 
+
 def analyze_dataset(df, question):
     """
-    Complete AI agent workflow:
+    Complete multi-step AI agent workflow:
 
-    1. Create tools dynamically.
-    2. Ask Qwen to select a tool.
-    3. Validate the selected tool.
-    4. Execute Python analysis.
-    5. Generate a human-readable explanation.
-    6. Return structured results.
+    1. Validate the dataset and question.
+    2. Create available tools dynamically.
+    3. Let the Manager Agent select and execute tools.
+    4. Collect results from all executed tools.
+    5. Generate one structured response.
+    6. Return the complete analysis.
     """
 
     if df.empty:
@@ -448,51 +450,49 @@ def analyze_dataset(df, question):
     if not question or not question.strip():
         raise ValueError("Question cannot be empty.")
 
+    # Create the six approved tools dynamically.
     tools = create_tools(df)
 
-    message = ask_qwen(
-        df,
-        question,
-        tools
-    )
-
-    tool_calls = message.get("tool_calls", [])
-
-    if not tool_calls:
-        raise ValueError(
-            "The AI could not select an analysis tool "
-            "for this question."
-        )
-
-    if len(tool_calls) != 1:
-        raise ValueError(
-            "Multiple tool calls are not supported yet."
-        )
-
-    tool_call = tool_calls[0]
-
-    selected_tool = tool_call["function"]["name"]
-    arguments = tool_call["function"]["arguments"]
-
-    # Execute the actual analysis using Python.
-    result = execute_tool(
-        df,
-        tool_call
-    )
-
-    # Generate a readable explanation from the results.
-    explanation = generate_analysis_response(
+    # Let the Manager Agent execute multiple tools.
+    manager_result = run_manager(
+        df=df,
         question=question,
-        selected_tool=selected_tool,
-        arguments=arguments,
-        results=result
+        tools=tools,
+        tool_executor=execute_tool
     )
+
+    tool_results = manager_result["tool_results"]
+
+    if not tool_results:
+        raise ValueError(
+            "The AI could not execute any valid analysis tools."
+        )
+
+    # Generate one response from all collected results.
+    explanation = generate_multi_analysis_response(
+        question=question,
+        tool_results=tool_results,
+        final_message=manager_result["final_message"]
+    )
+
+    # Preserve the original single-tool response fields
+    # when only one tool was executed.
+    single_tool = len(tool_results) == 1
 
     return {
         "question": question,
-        "selected_tool": selected_tool,
-        "arguments": arguments,
+        "selected_tool": (
+            tool_results[0]["tool"] if single_tool else None
+        ),
+        "arguments": (
+            tool_results[0]["arguments"] if single_tool else None
+        ),
         "summary": explanation["summary"],
         "key_findings": explanation["key_findings"],
-        "results": result
+        "results": (
+            tool_results[0]["results"] if single_tool else None
+        ),
+        "tool_results": tool_results,
+        "tool_calls_count": manager_result["tool_calls_count"],
+        "stop_reason": manager_result["stop_reason"]
     }
