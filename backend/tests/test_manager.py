@@ -95,6 +95,26 @@ def test_manager_executes_multiple_tools(
         for message in call_history[1]
     )
 
+    # Verify conversation history is returned.
+    history = result["conversation_history"]
+
+    assert isinstance(history, list)
+
+    # Previous user question should be preserved.
+    assert any(
+        message.get("role") == "user"
+        for message in history
+    )
+
+    # Tool results should be preserved.
+    assert any(
+        message.get("role") == "tool"
+        for message in history
+    )
+
+    # Final assistant response should be preserved.
+    assert history[-1]["content"] == "Analysis completed."
+
 
 def test_manager_stops_when_no_more_tools(
     monkeypatch,
@@ -123,6 +143,10 @@ def test_manager_stops_when_no_more_tools(
         "No additional analysis is needed."
     )
     assert result["stop_reason"] == "completed"
+
+    assert result["conversation_history"][-1]["content"] == (
+        "No additional analysis is needed."
+    )
 
 
 def test_manager_respects_tool_call_limit(

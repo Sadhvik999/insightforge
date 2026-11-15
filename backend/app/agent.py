@@ -432,7 +432,11 @@ def execute_tool(df, tool_call):
 # --------------------------------------------------
 
 
-def analyze_dataset(df, question):
+def analyze_dataset(
+    df,
+    question,
+    conversation_history=None
+):
     """
     Complete multi-step AI agent workflow:
 
@@ -458,7 +462,8 @@ def analyze_dataset(df, question):
         df=df,
         question=question,
         tools=tools,
-        tool_executor=execute_tool
+        tool_executor=execute_tool,
+        conversation_history=conversation_history
     )
 
     tool_results = manager_result["tool_results"]
@@ -494,5 +499,6 @@ def analyze_dataset(df, question):
         ),
         "tool_results": tool_results,
         "tool_calls_count": manager_result["tool_calls_count"],
-        "stop_reason": manager_result["stop_reason"]
+        "stop_reason": manager_result["stop_reason"],
+        "conversation_history": manager_result["conversation_history"]
     }

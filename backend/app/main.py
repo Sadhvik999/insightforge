@@ -10,6 +10,12 @@ from app.inspector import inspect_dataset
 from app.cleaner import clean_dataset
 from app.agent import analyze_dataset
 
+from app.conversation_store import (
+    create_conversation,
+    get_conversation,
+    update_conversation
+)
+
 
 app = FastAPI(
     title="InsightForge API",
@@ -84,7 +90,10 @@ async def inspect_file(file: UploadFile = File(...)):
         )
 
     try:
-        df = pd.read_csv(file.file, encoding="latin1")
+        df = pd.read_csv(
+            file.file,
+            encoding="latin1"
+        )
 
         report = inspect_dataset(df)
 
@@ -116,7 +125,10 @@ async def clean_file(file: UploadFile = File(...)):
         )
 
     try:
-        df = pd.read_csv(file.file, encoding="latin1")
+        df = pd.read_csv(
+            file.file,
+            encoding="latin1"
+        )
 
         cleaned_df, cleaning_report = clean_dataset(df)
 
@@ -142,20 +154,15 @@ async def clean_file(file: UploadFile = File(...)):
 
 
 # --------------------------------------------------
-# AI DATA ANALYSIS ENDPOINT
+# AI DATA ANALYSIS WITH CONVERSATION MEMORY
 # --------------------------------------------------
 
 @app.post("/analyze")
 async def analyze_file(
     question: str = Form(...),
-    file: UploadFile = File(...)
+    conversation_id: str | None = Form(None),
+    file: UploadFile | None = File(None)
 ):
-
-    if not file.filename.lower().endswith(".csv"):
-        raise HTTPException(
-            status_code=400,
-            detail="Only CSV files are supported"
-        )
 
     if not question.strip():
         raise HTTPException(
@@ -164,25 +171,99 @@ async def analyze_file(
         )
 
     try:
-        # 1. Read uploaded CSV
-        df = pd.read_csv(
-            file.file,
-            encoding="latin1"
-        )
 
-        if df.empty:
-            raise HTTPException(
-                status_code=400,
-                detail="Uploaded dataset is empty."
+        # --------------------------------------------------
+        # FIRST REQUEST: Create a new conversation
+        # --------------------------------------------------
+
+        if conversation_id is None:
+
+            if file is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Upload a CSV file to start a conversation."
+                )
+
+            if not file.filename.lower().endswith(".csv"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Only CSV files are supported."
+                )
+
+            # Read uploaded dataset.
+            df = pd.read_csv(
+                file.file,
+                encoding="latin1"
             )
 
-        # 2. Run AI agent
+            if df.empty:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Uploaded dataset is empty."
+                )
+
+            # Create conversation and store dataset.
+            conversation_id = create_conversation(df)
+
+            conversation = get_conversation(conversation_id)
+
+        # --------------------------------------------------
+        # FOLLOW-UP REQUEST: Retrieve existing conversation
+        # --------------------------------------------------
+
+        else:
+
+            if file is not None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Do not upload another file "
+                        "in an existing conversation."
+                    )
+                )
+
+            try:
+                conversation = get_conversation(
+                    conversation_id
+                )
+
+            except ValueError:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Conversation not found."
+                )
+
+        # --------------------------------------------------
+        # RETRIEVE DATASET AND PREVIOUS CONVERSATION HISTORY
+        # --------------------------------------------------
+
+        df = conversation["df"]
+
+        conversation_history = conversation["messages"]
+
+        # --------------------------------------------------
+        # RUN CONTEXT-AWARE AI ANALYSIS
+        # --------------------------------------------------
+
         result = analyze_dataset(
             df,
-            question
+            question,
+            conversation_history=conversation_history
         )
 
-        # 3. Convert results into JSON-safe values
+        # --------------------------------------------------
+        # SAVE UPDATED CONVERSATION HISTORY
+        # --------------------------------------------------
+
+        update_conversation(
+            conversation_id,
+            result["conversation_history"]
+        )
+
+        # Include conversation ID in API response.
+        result["conversation_id"] = conversation_id
+
+        # Convert response into JSON-safe values.
         safe_result = make_json_safe(result)
 
         return JSONResponse(content=safe_result)
@@ -209,4 +290,5 @@ async def analyze_file(
         )
 
     finally:
-        await file.close()
+        if file is not None:
+            await file.close()

@@ -7,10 +7,12 @@ OLLAMA_URL = "http://localhost:11434/api/chat"
 MODEL_NAME = "qwen2.5:1.5b"
 
 
-def generate_aggregate_response(arguments, results):
+def generate_aggregate_response(arguments, results, question=None):
     """
     Generate mathematically reliable explanations
     for aggregation results using Python.
+
+    Supports both highest and lowest questions.
     """
 
     if not isinstance(results, list) or not results:
@@ -23,23 +25,73 @@ def generate_aggregate_response(arguments, results):
     target_column = arguments["target_column"]
     operation = arguments["operation"]
 
-    sorted_results = sorted(
-        results,
-        key=lambda item: (
-            item["result"] is not None,
-            item["result"] if item["result"] is not None else 0
-        ),
-        reverse=True
+    # Determine whether the user wants the highest or lowest.
+    question_text = (question or "").lower()
+
+    lowest_keywords = [
+        "lowest",
+        "least",
+        "minimum",
+        "smallest",
+        "fewest"
+    ]
+
+    highest_keywords = [
+        "highest",
+        "most",
+        "maximum",
+        "largest",
+        "greatest"
+    ]
+
+    wants_lowest = any(
+        keyword in question_text
+        for keyword in lowest_keywords
     )
 
-    highest = sorted_results[0]
-    lowest = sorted_results[-1]
+    wants_highest = any(
+        keyword in question_text
+        for keyword in highest_keywords
+    )
 
-    highest_group = highest[group_column]
-    highest_value = highest["result"]
+    # Default to highest to preserve previous behavior.
+    if wants_lowest and not wants_highest:
+        ranking = "lowest"
+    else:
+        ranking = "highest"
 
-    lowest_group = lowest[group_column]
-    lowest_value = lowest["result"]
+    # Ignore null aggregation results while ranking.
+    valid_results = [
+        item for item in results
+        if item.get("result") is not None
+    ]
+
+    if not valid_results:
+        return {
+            "summary": "No valid aggregation values were available.",
+            "key_findings": []
+        }
+
+    sorted_results = sorted(
+        valid_results,
+        key=lambda item: item["result"],
+        reverse=(ranking == "highest")
+    )
+
+    selected = sorted_results[0]
+
+    selected_group = selected[group_column]
+    selected_value = selected["result"]
+
+    highest = max(
+        valid_results,
+        key=lambda item: item["result"]
+    )
+
+    lowest = min(
+        valid_results,
+        key=lambda item: item["result"]
+    )
 
     def format_value(value):
         if isinstance(value, (int, float)):
@@ -48,9 +100,9 @@ def generate_aggregate_response(arguments, results):
         return str(value)
 
     summary = (
-        f"{highest_group} has the highest "
+        f"{selected_group} has the {ranking} "
         f"{operation} of {target_column}, "
-        f"at {format_value(highest_value)}."
+        f"at {format_value(selected_value)}."
     )
 
     key_findings = [
@@ -62,11 +114,19 @@ def generate_aggregate_response(arguments, results):
         for item in sorted_results[:3]
     ]
 
-    if len(sorted_results) > 1:
+    # Include the opposite extreme when there is more than one group.
+    if len(valid_results) > 1:
+
+        opposite = lowest if ranking == "highest" else highest
+
+        opposite_ranking = (
+            "lowest" if ranking == "highest" else "highest"
+        )
+
         key_findings.append(
-            f"{lowest_group} has the lowest "
+            f"{opposite[group_column]} has the {opposite_ranking} "
             f"{operation} of {target_column}, "
-            f"at {format_value(lowest_value)}."
+            f"at {format_value(opposite['result'])}."
         )
 
     return {
@@ -177,7 +237,11 @@ def generate_analysis_response(
     """
 
     if selected_tool == "aggregate_data":
-        return generate_aggregate_response(arguments, results)
+        return generate_aggregate_response(
+            arguments,
+            results,
+            question
+        )
 
     if selected_tool == "visualize_data":
         evidence = {
@@ -233,7 +297,8 @@ def generate_multi_analysis_response(
 
             aggregation_response = generate_aggregate_response(
                 arguments,
-                results
+                results,
+                question
             )
 
             aggregation_summaries.append(

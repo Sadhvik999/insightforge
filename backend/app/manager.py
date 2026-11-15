@@ -39,12 +39,34 @@ def ask_manager(messages, tools):
         )
 
 
+def prepare_conversation_history(conversation_history):
+    """
+    Keep previous user questions as context.
+    Exclude previous assistant tool calls and tool results.
+    """
+
+    if not conversation_history:
+        return []
+
+    cleaned_history = []
+
+    for message in conversation_history:
+        if message.get("role") == "user":
+            cleaned_history.append({
+                "role": "user",
+                "content": message.get("content", "")
+            })
+
+    return cleaned_history
+
+
 def run_manager(
     df,
     question,
     tools,
     tool_executor,
-    max_tool_calls=MAX_TOOL_CALLS
+    max_tool_calls=MAX_TOOL_CALLS,
+    conversation_history=None
 ):
     """
     Coordinate multiple approved Python tool executions.
@@ -59,29 +81,53 @@ def run_manager(
             "Maximum tool calls must be a positive integer."
         )
 
+    system_message = {
+        "role": "system",
+        "content": (
+            "You are the Manager Agent of an AI data analyst. "
+
+            "You MUST use an available Python tool for every "
+            "new analysis question. Never answer a new analysis "
+            "question using only conversation history. "
+
+            "Use previous user questions to understand references "
+            "such as 'it', 'that', or 'those'. "
+
+            "Previous Python tool results are evidence, but you "
+            "must execute a fresh tool call for the current question. "
+
+            "Identify every separate task requested by the user. "
+            "Complete every requested task before providing a final answer. "
+
+            "If the user requests both an overall dataset summary "
+            "and column-level information, you MUST call "
+            "get_dataset_summary and get_column_info. "
+
+            "Execute one tool at a time and examine its result "
+            "before deciding which tool to call next. "
+
+            "Do not stop after completing only one part of a "
+            "multi-part request. "
+
+            "Never invent columns or numerical results. "
+            "Python tool results are the source of truth. "
+
+            "Do not repeat identical tool calls within the current request. "
+
+            "When enough evidence is collected, stop calling tools "
+            "and provide a concise final answer. "
+
+            "Never generate or execute Python code."
+        )
+    }
+
+    previous_history = prepare_conversation_history(
+        conversation_history
+    )
+
     messages = [
-        {
-            "role": "system",
-            "content": (
-                "You are the Manager Agent of an AI data analyst. "
-                "Use available Python tools to answer questions. "
-                "Identify every separate task requested by the user. "
-                "Complete every requested task before providing a final answer. "
-                "If the user requests both an overall dataset summary "
-                "and column-level information, you MUST call "
-                "get_dataset_summary and get_column_info. "
-                "Execute one tool at a time and examine its result "
-                "before deciding which tool to call next. "
-                "Do not stop after completing only one part of a multi-part request. "
-                "Use previous tool results to decide what to do next. "
-                "Never invent columns or numerical results. "
-                "Python tool results are the source of truth. "
-                "Do not repeat identical tool calls. "
-                "When enough evidence is collected, stop calling tools "
-                "and provide a concise final answer. "
-                "Never generate or execute Python code."
-            )
-        },
+        system_message,
+        *previous_history,
         {
             "role": "user",
             "content": question
@@ -102,16 +148,21 @@ def run_manager(
             tools
         )
 
+        # TEMPORARY DEBUG OUTPUT
+        print("\n========== MANAGER DEBUG ==========")
+        print(json.dumps(message, indent=2))
+        print("===================================\n")
+
         tool_calls = message.get("tool_calls", [])
 
         if not tool_calls:
             final_message = message.get("content", "")
+            messages.append(message)
             break
 
         # Preserve the assistant's tool-call message.
         messages.append(message)
 
-        
         for tool_call in tool_calls:
 
             function = tool_call.get("function", {})
@@ -164,6 +215,7 @@ def run_manager(
                     })
 
                 except (ValueError, TypeError, KeyError) as e:
+
                     tool_output = {
                         "success": False,
                         "error": str(e)
@@ -181,7 +233,6 @@ def run_manager(
         if limit_reached:
             break
 
-
     return {
         "tool_results": tool_results,
         "tool_calls_count": tool_count,
@@ -190,5 +241,6 @@ def run_manager(
             "completed"
             if final_message is not None
             else "max_tool_calls_reached"
-        )
+        ),
+        "conversation_history": messages[1:]
     }
