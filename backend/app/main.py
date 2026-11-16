@@ -1,6 +1,7 @@
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 import pandas as pd
 import numpy as np
@@ -21,6 +22,18 @@ app = FastAPI(
     title="InsightForge API",
     version="1.0.0",
     description="API for InsightForge - AI-powered Data Analytics Platform"
+)
+
+# Enable CORS for local frontend development
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

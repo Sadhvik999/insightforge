@@ -55,10 +55,13 @@ def categorical_summary(df, columns=None):
     summary = {}
 
     for column in categorical_df.columns:
+        modes = categorical_df[column].mode()
+        counts = categorical_df[column].value_counts()
+
         summary[column] = {
-            "unique_values": categorical_df[column].nunique(),
-            "most_frequent": categorical_df[column].mode().iloc[0],
-            "most_frequent_count": categorical_df[column].value_counts().iloc[0]
+            "unique_values": int(categorical_df[column].nunique()),
+            "most_frequent": modes.iloc[0] if not modes.empty else None,
+            "most_frequent_count": int(counts.iloc[0]) if not counts.empty else 0
         }
 
     return summary

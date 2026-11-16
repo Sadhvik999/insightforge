@@ -41,8 +41,8 @@ def ask_manager(messages, tools):
 
 def prepare_conversation_history(conversation_history):
     """
-    Keep previous user questions as context.
-    Exclude previous assistant tool calls and tool results.
+    Keep previous user questions and assistant answers as context.
+    Exclude previous assistant tool calls and raw tool results.
     """
 
     if not conversation_history:
@@ -51,10 +51,18 @@ def prepare_conversation_history(conversation_history):
     cleaned_history = []
 
     for message in conversation_history:
-        if message.get("role") == "user":
+        role = message.get("role")
+        content = message.get("content", "")
+
+        if role == "user" and content:
             cleaned_history.append({
                 "role": "user",
-                "content": message.get("content", "")
+                "content": content
+            })
+        elif role == "assistant" and content and not message.get("tool_calls"):
+            cleaned_history.append({
+                "role": "assistant",
+                "content": content
             })
 
     return cleaned_history
@@ -90,7 +98,7 @@ def run_manager(
             "new analysis question. Never answer a new analysis "
             "question using only conversation history. "
 
-            "Use previous user questions to understand references "
+            "Use previous conversation context to understand references "
             "such as 'it', 'that', or 'those'. "
 
             "Previous Python tool results are evidence, but you "

@@ -62,30 +62,3 @@ def inspect_dataset(df, clean=False):
         report["correlation_analysis"] = {}
 
     return report
-
-
-
-
-# Test integrated inspection with cleaning enabled
-
-import pandas as pd
-from app.inspector import inspect_dataset
-
-test_df = pd.DataFrame({
-    "Age": [20, None, 30, 30],
-    "Salary": [30000, 40000, 50000, 50000],
-    "City": ["Delhi", "Mumbai", None, None]
-})
-
-report = inspect_dataset(test_df, clean=True)
-
-print("\nCleaning Integration Test")
-print("Rows:", report["rows"])
-print("Columns:", report["columns"])
-print("Missing values:", report["missing_values"])
-print("Duplicate rows:", report["duplicate_rows"])
-print("Cleaning report:", report["cleaning_report"])
-
-print("\nOriginal DataFrame unchanged:")
-print(test_df.isnull().sum())
-print("Original rows:", len(test_df))

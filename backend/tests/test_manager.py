@@ -2,7 +2,7 @@
 import pandas as pd
 import pytest
 
-from app.manager import run_manager
+from app.manager import run_manager, prepare_conversation_history
 
 
 @pytest.fixture
@@ -242,3 +242,71 @@ def test_manager_rejects_invalid_tool_limit(
             fake_executor,
             max_tool_calls=limit
         )
+
+
+def test_prepare_conversation_history():
+    raw_history = [
+        {"role": "user", "content": "What was the highest sales region?"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [make_tool_call("aggregate_data", {})]
+        },
+        {
+            "role": "tool",
+            "tool_name": "aggregate_data",
+            "content": '{"success": true, "result": [{"Region": "West", "result": 900}]}'
+        },
+        {
+            "role": "assistant",
+            "content": "West had the highest sales at 900."
+        }
+    ]
+
+    cleaned = prepare_conversation_history(raw_history)
+
+    assert len(cleaned) == 2
+    assert cleaned[0] == {
+        "role": "user",
+        "content": "What was the highest sales region?"
+    }
+    assert cleaned[1] == {
+        "role": "assistant",
+        "content": "West had the highest sales at 900."
+    }
+
+
+def test_manager_includes_conversation_history(
+    monkeypatch,
+    sample_df
+):
+    history = [
+        {"role": "user", "content": "What was the highest sales region?"},
+        {"role": "assistant", "content": "West had the highest sales at 900."}
+    ]
+
+    sent_messages = []
+
+    def fake_ask_manager(messages, tools):
+        sent_messages.extend(messages)
+        return make_message(content="Follow-up answered.")
+
+    monkeypatch.setattr(
+        "app.manager.ask_manager",
+        fake_ask_manager
+    )
+
+    result = run_manager(
+        sample_df,
+        "What was its profit?",
+        [],
+        fake_executor,
+        conversation_history=history
+    )
+
+    assert result["final_message"] == "Follow-up answered."
+    # The message history sent to ask_manager must contain the previous assistant message
+    assert any(
+        msg.get("role") == "assistant" and "West had the highest sales" in msg.get("content", "")
+        for msg in sent_messages
+    )

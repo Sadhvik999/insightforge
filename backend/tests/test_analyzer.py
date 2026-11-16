@@ -55,3 +55,14 @@ def test_correlation_analysis(sample_df):
 def test_invalid_group_column(sample_df):
     with pytest.raises(ValueError):
         group_analysis(sample_df, "Invalid", "Sales", "sum")
+
+
+def test_categorical_summary_all_null():
+    df = pd.DataFrame({
+        "Category": [None, None, None]
+    })
+    result = categorical_summary(df)
+
+    assert result["Category"]["unique_values"] == 0
+    assert result["Category"]["most_frequent"] is None
+    assert result["Category"]["most_frequent_count"] == 0
