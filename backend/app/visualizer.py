@@ -8,7 +8,8 @@ def create_visualization(
     chart_type,
     x_column,
     y_column=None,
-    title=None
+    title=None,
+    aggregation="sum"
 ):
     """
     Create a Plotly visualization dynamically.
@@ -36,8 +37,21 @@ def create_visualization(
             )
 
     if chart_type == "bar":
+        agg_func = (
+            aggregation
+            if aggregation in ["sum", "mean", "min", "max", "count"]
+            else "sum"
+        )
+        if df[x_column].duplicated().any():
+            plot_df = (
+                df.groupby(x_column, as_index=False, observed=False)[y_column]
+                .agg(agg_func)
+            )
+        else:
+            plot_df = df
+
         fig = px.bar(
-            df,
+            plot_df,
             x=x_column,
             y=y_column,
             title=title or f"{y_column} by {x_column}"

@@ -229,11 +229,23 @@ def run_manager(
                         "error": str(e)
                     }
 
+            llm_tool_output = tool_output
+            if function_name == "visualize_data" and isinstance(tool_output.get("result"), dict):
+                llm_result = {
+                    k: v for k, v in tool_output["result"].items()
+                    if k != "figure"
+                }
+                llm_result["chart_status"] = "Visualization figure generated successfully."
+                llm_tool_output = {
+                    "success": tool_output.get("success", True),
+                    "result": llm_result
+                }
+
             messages.append({
                 "role": "tool",
                 "tool_name": function_name,
                 "content": json.dumps(
-                    tool_output,
+                    llm_tool_output,
                     default=str
                 )
             })

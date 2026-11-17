@@ -171,6 +171,14 @@ def create_tools(df):
                         },
                         "title": {
                             "type": ["string", "null"]
+                        },
+                        "aggregation": {
+                            "type": ["string", "null"],
+                            "enum": ["sum", "mean", "min", "max", "count", None],
+                            "description": (
+                                "Aggregation function for bar chart categories "
+                                "(defaults to sum)."
+                            )
                         }
                     },
                     "required": ["chart_type", "x_column"]
@@ -365,6 +373,7 @@ def execute_tool(df, tool_call):
         x_column = arguments.get("x_column")
         y_column = arguments.get("y_column")
         title = arguments.get("title")
+        aggregation = arguments.get("aggregation") or "sum"
 
         if chart_type not in [
             "bar", "line", "histogram", "scatter"
@@ -408,7 +417,8 @@ def execute_tool(df, tool_call):
             chart_type=chart_type,
             x_column=x_column,
             y_column=y_column,
-            title=title
+            title=title,
+            aggregation=aggregation
         )
 
         figure_data = json.loads(fig.to_json())
@@ -418,6 +428,7 @@ def execute_tool(df, tool_call):
             "x_column": x_column,
             "y_column": y_column,
             "title": title,
+            "aggregation": aggregation if chart_type == "bar" else None,
             "figure": figure_data
         }
 

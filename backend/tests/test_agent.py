@@ -275,3 +275,83 @@ def test_invalid_visualization_column(sample_df):
 
     with pytest.raises(ValueError):
         execute_tool(sample_df, call)
+
+
+def get_trace_y(trace):
+    y = trace["y"]
+    if isinstance(y, dict) and "bdata" in y:
+        import base64
+        import numpy as np
+        return list(np.frombuffer(base64.b64decode(y["bdata"]), dtype=y["dtype"]))
+    return list(y)
+
+
+def test_bar_visualization_aggregates_sums_by_category(sample_df):
+    call = make_tool_call(
+        "visualize_data",
+        {
+            "chart_type": "bar",
+            "x_column": "City",
+            "y_column": "Sales"
+        }
+    )
+
+    result = execute_tool(sample_df, call)
+    trace = result["figure"]["data"][0]
+
+    # Exactly one bar per unique category (no horizontal stripes/stacked rows)
+    assert len(trace["x"]) == 3
+    y_values = get_trace_y(trace)
+    assert len(y_values) == 3
+
+    city_totals = dict(zip(trace["x"], y_values))
+    assert city_totals["Delhi"] == 1200  # 500 + 700
+    assert city_totals["Mumbai"] == 1700  # 800 + 900
+    assert city_totals["Chennai"] == 400
+
+
+def test_bar_visualization_supports_mean_aggregation(sample_df):
+    call = make_tool_call(
+        "visualize_data",
+        {
+            "chart_type": "bar",
+            "x_column": "City",
+            "y_column": "Sales",
+            "aggregation": "mean"
+        }
+    )
+
+    result = execute_tool(sample_df, call)
+    trace = result["figure"]["data"][0]
+
+    assert len(trace["x"]) == 3
+    y_values = get_trace_y(trace)
+    city_means = dict(zip(trace["x"], y_values))
+    assert city_means["Delhi"] == 600.0  # (500 + 700) / 2
+    assert city_means["Mumbai"] == 850.0  # (800 + 900) / 2
+    assert city_means["Chennai"] == 400.0
+
+
+def test_bar_visualization_without_duplicate_categories():
+    df = pd.DataFrame({
+        "Country": ["USA", "Canada", "Mexico"],
+        "Revenue": [1000, 500, 300]
+    })
+    call = make_tool_call(
+        "visualize_data",
+        {
+            "chart_type": "bar",
+            "x_column": "Country",
+            "y_column": "Revenue"
+        }
+    )
+
+    result = execute_tool(df, call)
+    trace = result["figure"]["data"][0]
+
+    assert len(trace["x"]) == 3
+    y_values = get_trace_y(trace)
+    country_revenue = dict(zip(trace["x"], y_values))
+    assert country_revenue["USA"] == 1000
+    assert country_revenue["Canada"] == 500
+    assert country_revenue["Mexico"] == 300
