@@ -39,10 +39,63 @@ def ask_manager(messages, tools):
         )
 
 
+CONVERSATIONAL_GREETINGS = {
+    "hello", "hi", "hey", "greetings", "thanks", "thank you", "bye", "goodbye", "help"
+}
+
+
+def is_conversational_query(question):
+    """
+    Check if a question is an ordinary conversational greeting or pleasantry
+    rather than an analytical or visualization request.
+    """
+    if not isinstance(question, str):
+        return False
+    return question.strip().lower().rstrip("!?.") in CONVERSATIONAL_GREETINGS
+
+
+def sanitize_tool_payload(content):
+    """
+    Ensure tool output does not contain raw Plotly figure dictionaries
+    or excessively large payloads before passing to LLM context.
+    """
+    parsed = None
+    if isinstance(content, str):
+        try:
+            parsed = json.loads(content)
+        except (json.JSONDecodeError, TypeError):
+            parsed = None
+    elif isinstance(content, dict):
+        parsed = content.copy()
+
+    if isinstance(parsed, dict):
+        if "result" in parsed and isinstance(parsed["result"], dict):
+            res = parsed["result"]
+            if "figure" in res:
+                sanitized_res = {k: v for k, v in res.items() if k != "figure"}
+                sanitized_res["chart_status"] = (
+                    "Visualization generated successfully."
+                )
+                parsed["result"] = sanitized_res
+        elif "figure" in parsed:
+            del parsed["figure"]
+            parsed["chart_status"] = (
+                "Visualization generated successfully."
+            )
+
+        return json.dumps(parsed, default=str)
+
+    if isinstance(content, str):
+        return content
+
+    return json.dumps(content, default=str)
+
+
 def prepare_conversation_history(conversation_history):
     """
-    Keep previous user questions and assistant answers as context.
-    Exclude previous assistant tool calls and raw tool results.
+    Format previous conversation messages for the LLM context.
+    Preserves user messages, assistant tool calls, sanitized tool results,
+    and final assistant messages to maintain valid tool-calling dialogue structure.
     """
 
     if not conversation_history:
@@ -51,6 +104,9 @@ def prepare_conversation_history(conversation_history):
     cleaned_history = []
 
     for message in conversation_history:
+        if not isinstance(message, dict):
+            continue
+
         role = message.get("role")
         content = message.get("content", "")
 
@@ -59,11 +115,28 @@ def prepare_conversation_history(conversation_history):
                 "role": "user",
                 "content": content
             })
-        elif role == "assistant" and content and not message.get("tool_calls"):
-            cleaned_history.append({
-                "role": "assistant",
-                "content": content
-            })
+        elif role == "assistant":
+            tool_calls = message.get("tool_calls")
+            if tool_calls:
+                cleaned_history.append({
+                    "role": "assistant",
+                    "content": content or "",
+                    "tool_calls": tool_calls
+                })
+            elif content:
+                cleaned_history.append({
+                    "role": "assistant",
+                    "content": content
+                })
+        elif role == "tool":
+            sanitized_content = sanitize_tool_payload(content)
+            tool_entry = {
+                "role": "tool",
+                "content": sanitized_content
+            }
+            if "tool_name" in message:
+                tool_entry["tool_name"] = message["tool_name"]
+            cleaned_history.append(tool_entry)
 
     return cleaned_history
 
@@ -95,8 +168,16 @@ def run_manager(
             "You are the Manager Agent of an AI data analyst. "
 
             "You MUST use an available Python tool for every "
-            "new analysis question. Never answer a new analysis "
-            "question using only conversation history. "
+            "new analytical question and every visualization, chart, or plot request, "
+            "including all follow-up turns. Never answer an analysis or visualization "
+            "request using only conversation history or text alone. "
+
+            "For any chart, plot, or graph request (such as bar, line, scatter, or histogram), "
+            "you MUST call the visualize_data tool. "
+
+            "You are strictly prohibited from stating or claiming that a chart, plot, "
+            "or calculation was created or completed unless the corresponding tool "
+            "was actually executed during the current turn. "
 
             "Use previous conversation context to understand references "
             "such as 'it', 'that', or 'those'. "
@@ -148,6 +229,8 @@ def run_manager(
     tool_count = 0
     final_message = None
     limit_reached = False
+    retries = 0
+    max_retries = 1
 
     while tool_count < max_tool_calls:
 
@@ -164,6 +247,26 @@ def run_manager(
         tool_calls = message.get("tool_calls", [])
 
         if not tool_calls:
+            # Check if this is a zero-tool text response for an analytical/visualization request
+            if tools and tool_count == 0 and not is_conversational_query(question):
+                if retries < max_retries:
+                    retries += 1
+                    messages.append(message)
+                    messages.append({
+                        "role": "user",
+                        "content": (
+                            "You have not executed any tool yet. You MUST execute an available "
+                            "Python tool to answer this question or generate this chart. "
+                            "Execute the appropriate tool now."
+                        )
+                    })
+                    continue
+
+                # Retry limit reached without any tool executed
+                messages.append(message)
+                final_message = "The AI could not execute any valid analysis tools."
+                break
+
             final_message = message.get("content", "")
             messages.append(message)
             break
@@ -235,11 +338,26 @@ def run_manager(
                     k: v for k, v in tool_output["result"].items()
                     if k != "figure"
                 }
-                llm_result["chart_status"] = "Visualization figure generated successfully."
+                llm_result["chart_status"] = "Visualization generated successfully."
                 llm_tool_output = {
                     "success": tool_output.get("success", True),
                     "result": llm_result
                 }
+            elif function_name == "aggregate_data" and isinstance(tool_output.get("result"), list):
+                target_col = arguments.get("target_column")
+                if target_col:
+                    renamed_records = []
+                    for row in tool_output["result"]:
+                        if isinstance(row, dict) and "result" in row:
+                            new_row = row.copy()
+                            new_row[target_col] = new_row.pop("result")
+                            renamed_records.append(new_row)
+                        else:
+                            renamed_records.append(row)
+                    llm_tool_output = {
+                        "success": tool_output.get("success", True),
+                        "result": renamed_records
+                    }
 
             messages.append({
                 "role": "tool",
@@ -253,14 +371,19 @@ def run_manager(
         if limit_reached:
             break
 
+    if limit_reached:
+        stop_reason = "max_tool_calls_reached"
+    elif tool_count == 0 and tools and not is_conversational_query(question):
+        stop_reason = "zero_tools_executed"
+    elif final_message is not None:
+        stop_reason = "completed"
+    else:
+        stop_reason = "max_tool_calls_reached"
+
     return {
         "tool_results": tool_results,
         "tool_calls_count": tool_count,
         "final_message": final_message,
-        "stop_reason": (
-            "completed"
-            if final_message is not None
-            else "max_tool_calls_reached"
-        ),
+        "stop_reason": stop_reason,
         "conversation_history": messages[1:]
     }
