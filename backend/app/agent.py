@@ -11,7 +11,11 @@ from app.tools import (
 
 from app.analyzer import correlation_analysis
 from app.visualizer import create_visualization
-from app.manager import run_manager
+from app.manager import (
+    run_manager,
+    is_visualization_query,
+    has_valid_visualization
+)
 from app.response_generator import generate_multi_analysis_response
 
 
@@ -150,9 +154,13 @@ def create_tools(df):
                 "name": "visualize_data",
                 "description": (
                     "Create a chart from the dataset. "
-                    "Choose bar for category comparisons, "
-                    "line for trends, histogram for distributions, "
-                    "and scatter for relationships between two numerical columns."
+                    "Choose bar for category comparisons and aggregated metrics "
+                    "(such as average, sum, min, max, count), "
+                    "line for trends over time/categories, "
+                    "histogram for single numerical distributions, "
+                    "and scatter for relationships between two numerical columns. "
+                    "For bar charts with aggregation, set aggregation to "
+                    "'mean' (for average), 'sum' (for total), 'min', 'max', or 'count'."
                 ),
                 "parameters": {
                     "type": "object",
@@ -480,9 +488,18 @@ def analyze_dataset(
     tool_results = manager_result["tool_results"]
 
     if not tool_results:
-        raise ValueError(
-            "The AI could not execute any valid analysis tools."
+        error_msg = (
+            manager_result.get("final_message")
+            or "The AI could not execute any valid analysis tools."
         )
+        raise ValueError(error_msg)
+
+    if is_visualization_query(question) and not has_valid_visualization(tool_results):
+        error_msg = (
+            manager_result.get("final_message")
+            or "The requested visualization could not be generated."
+        )
+        raise ValueError(error_msg)
 
     # Generate one response from all collected results.
     explanation = generate_multi_analysis_response(

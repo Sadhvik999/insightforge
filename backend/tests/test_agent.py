@@ -2,7 +2,7 @@
 import pandas as pd
 import pytest
 
-from app.agent import create_tools, execute_tool
+from app.agent import create_tools, execute_tool, analyze_dataset
 
 
 @pytest.fixture
@@ -355,3 +355,212 @@ def test_bar_visualization_without_duplicate_categories():
     assert country_revenue["USA"] == 1000
     assert country_revenue["Canada"] == 500
     assert country_revenue["Mexico"] == 300
+
+
+def test_analyze_dataset_fails_gracefully_when_visualization_fails(
+    monkeypatch,
+    sample_df
+):
+    def fake_run_manager(*args, **kwargs):
+        return {
+            "tool_results": [],
+            "tool_calls_count": 1,
+            "final_message": "The requested visualization could not be generated.",
+            "stop_reason": "visualization_failed",
+            "conversation_history": []
+        }
+
+    monkeypatch.setattr("app.agent.run_manager", fake_run_manager)
+
+    with pytest.raises(ValueError) as excinfo:
+        analyze_dataset(
+            sample_df,
+            "Create a bar chart of Sales by NonExistentColumn."
+        )
+
+    assert "could not be generated" in str(excinfo.value)
+    assert "successfully" not in str(excinfo.value)
+
+
+def test_analyze_dataset_valid_figure(monkeypatch, sample_df):
+    figure_data = {"data": [{"x": ["Delhi", "Mumbai"], "y": [500, 800]}], "layout": {}}
+    def fake_run_manager(*args, **kwargs):
+        return {
+            "tool_results": [{
+                "tool": "visualize_data",
+                "arguments": {"chart_type": "bar", "x_column": "City", "y_column": "Sales"},
+                "results": {
+                    "chart_type": "bar",
+                    "x_column": "City",
+                    "y_column": "Sales",
+                    "figure": figure_data
+                }
+            }],
+            "tool_calls_count": 1,
+            "final_message": "Visualization generated.",
+            "stop_reason": "completed",
+            "conversation_history": []
+        }
+
+    monkeypatch.setattr("app.agent.run_manager", fake_run_manager)
+
+    response = analyze_dataset(
+        sample_df,
+        "Create a bar chart showing Sales by City."
+    )
+
+    assert response["selected_tool"] == "visualize_data"
+    # Preserves valid figures in tool_results / results for the frontend
+    assert response["results"]["figure"] == figure_data
+    assert response["tool_results"][0]["results"]["figure"] == figure_data
+
+
+def test_analyze_dataset_missing_figure_raises(monkeypatch, sample_df):
+    def fake_run_manager(*args, **kwargs):
+        return {
+            "tool_results": [{
+                "tool": "visualize_data",
+                "arguments": {"chart_type": "bar", "x_column": "City", "y_column": "Sales"},
+                "results": {
+                    "chart_type": "bar",
+                    "x_column": "City",
+                    "y_column": "Sales"
+                    # missing 'figure'
+                }
+            }],
+            "tool_calls_count": 1,
+            "final_message": "The requested visualization could not be generated.",
+            "stop_reason": "visualization_failed",
+            "conversation_history": []
+        }
+
+    monkeypatch.setattr("app.agent.run_manager", fake_run_manager)
+
+    with pytest.raises(ValueError) as excinfo:
+        analyze_dataset(
+            sample_df,
+            "Create a bar chart showing Sales by City."
+        )
+
+    assert "could not be generated" in str(excinfo.value)
+    assert "successfully" not in str(excinfo.value)
+
+
+def test_analyze_dataset_empty_figure_raises(monkeypatch, sample_df):
+    def fake_run_manager(*args, **kwargs):
+        return {
+            "tool_results": [{
+                "tool": "visualize_data",
+                "arguments": {"chart_type": "bar", "x_column": "City", "y_column": "Sales"},
+                "results": {
+                    "chart_type": "bar",
+                    "x_column": "City",
+                    "y_column": "Sales",
+                    "figure": {}  # empty dict figure
+                }
+            }],
+            "tool_calls_count": 1,
+            "final_message": "The requested visualization could not be generated.",
+            "stop_reason": "visualization_failed",
+            "conversation_history": []
+        }
+
+    monkeypatch.setattr("app.agent.run_manager", fake_run_manager)
+
+    with pytest.raises(ValueError) as excinfo:
+        analyze_dataset(
+            sample_df,
+            "Create a bar chart showing Sales by City."
+        )
+
+    assert "could not be generated" in str(excinfo.value)
+    assert "successfully" not in str(excinfo.value)
+
+
+def test_analyze_dataset_executor_exception_raises(monkeypatch, sample_df):
+    def fake_run_manager(*args, **kwargs):
+        return {
+            "tool_results": [],
+            "tool_calls_count": 1,
+            "final_message": "The requested visualization could not be generated.",
+            "stop_reason": "visualization_failed",
+            "conversation_history": []
+        }
+
+    monkeypatch.setattr("app.agent.run_manager", fake_run_manager)
+
+    with pytest.raises(ValueError) as excinfo:
+        analyze_dataset(
+            sample_df,
+            "Plot Sales vs City."
+        )
+
+    assert "could not be generated" in str(excinfo.value)
+
+
+def test_analyze_dataset_ordinary_aggregation_unaffected(monkeypatch, sample_df):
+    def fake_run_manager(*args, **kwargs):
+        return {
+            "tool_results": [{
+                "tool": "aggregate_data",
+                "arguments": {"group_column": "City", "target_column": "Sales", "operation": "mean"},
+                "results": [{"City": "Delhi", "result": 600}]
+            }],
+            "tool_calls_count": 1,
+            "final_message": "Mean sales calculated.",
+            "stop_reason": "completed",
+            "conversation_history": []
+        }
+
+    monkeypatch.setattr("app.agent.run_manager", fake_run_manager)
+
+    response = analyze_dataset(
+        sample_df,
+        "What is the average sales for each city?"
+    )
+
+    assert response["selected_tool"] == "aggregate_data"
+    assert "Delhi" in response["summary"]
+    assert response["stop_reason"] == "completed"
+
+
+def test_analyze_dataset_compound_request(monkeypatch, sample_df):
+    figure_data = {"data": [{"x": ["Delhi", "Mumbai"], "y": [600, 800]}], "layout": {}}
+    def fake_run_manager(*args, **kwargs):
+        return {
+            "tool_results": [
+                {
+                    "tool": "aggregate_data",
+                    "arguments": {"group_column": "City", "target_column": "Sales", "operation": "mean"},
+                    "results": [{"City": "Delhi", "result": 600}, {"City": "Mumbai", "result": 800}]
+                },
+                {
+                    "tool": "visualize_data",
+                    "arguments": {"chart_type": "bar", "x_column": "City", "y_column": "Sales", "aggregation": "mean"},
+                    "results": {
+                        "chart_type": "bar",
+                        "x_column": "City",
+                        "y_column": "Sales",
+                        "aggregation": "mean",
+                        "figure": figure_data
+                    }
+                }
+            ],
+            "tool_calls_count": 2,
+            "final_message": "Calculated the average sales and created the bar chart.",
+            "stop_reason": "completed",
+            "conversation_history": []
+        }
+
+    monkeypatch.setattr("app.agent.run_manager", fake_run_manager)
+
+    response = analyze_dataset(
+        sample_df,
+        "Calculate average Profit by Category and create a bar chart."
+    )
+
+    assert len(response["tool_results"]) == 2
+    assert response["tool_results"][0]["tool"] == "aggregate_data"
+    assert response["tool_results"][1]["tool"] == "visualize_data"
+    assert response["tool_results"][1]["results"]["figure"] == figure_data
+    assert response["stop_reason"] == "completed"
