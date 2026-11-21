@@ -56,14 +56,14 @@ export default function DataPreview({ dataset, onTriggerUpload }) {
       <div className="preview-header">
         <div className="preview-header-left">
           <div className="preview-icon-wrap">
-            <TableProperties className="w-5 h-5 text-purple-400" />
+            <TableProperties className="w-5 h-5 preview-icon-svg" />
           </div>
           <div>
             <div className="preview-title-row">
               <h2 id="preview-heading" className="preview-title">Dataset Preview</h2>
               {dataset?.backendVerified && (
                 <span className="preview-verified-badge" title="Schema and row counts verified by FastAPI">
-                  <ShieldCheck className="w-3.5 h-3.5 mr-1 text-emerald-400" />
+                  <ShieldCheck className="w-3.5 h-3.5 mr-1" />
                   Backend Verified
                 </span>
               )}
@@ -100,7 +100,7 @@ export default function DataPreview({ dataset, onTriggerUpload }) {
         /* Empty State */
         <div className="preview-empty-state">
           <div className="empty-state-icon-box">
-            <FileSpreadsheet className="w-10 h-10 text-purple-400" />
+            <FileSpreadsheet className="w-10 h-10 empty-state-icon" />
           </div>
           <h3 className="empty-state-title">No dataset loaded</h3>
           <p className="empty-state-description">
@@ -130,13 +130,13 @@ export default function DataPreview({ dataset, onTriggerUpload }) {
                         <div className="col-header-inner">
                           <span className="col-type-icon">
                             {typeInfo.kind === 'numeric' && (
-                              <Hash className="w-3 h-3 text-blue-400" title={`Numeric: ${typeInfo.label}`} />
+                              <Hash className="w-3 h-3 col-icon-numeric" title={`Numeric: ${typeInfo.label}`} />
                             )}
                             {typeInfo.kind === 'date' && (
-                              <Calendar className="w-3 h-3 text-amber-400" title={`DateTime: ${typeInfo.label}`} />
+                              <Calendar className="w-3 h-3 col-icon-date" title={`DateTime: ${typeInfo.label}`} />
                             )}
                             {typeInfo.kind === 'text' && (
-                              <Type className="w-3 h-3 text-purple-400" title={`Text: ${typeInfo.label}`} />
+                              <Type className="w-3 h-3 col-icon-text" title={`Text: ${typeInfo.label}`} />
                             )}
                           </span>
                           <span className="col-header-title">{colName}</span>

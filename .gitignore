@@ -2,17 +2,31 @@
 __pycache__/
 *.pyc
 venv/
+.venv/
+
+# Environment and Secret Files (Strictly Ignored)
 .env
+.env.*
+!.env.example
+*.env
+*.key
+*.pem
+*.secret
+*credential*
+*.token
 
 # Jupyter
 .ipynb_checkpoints/
 
-# Data
+# Data & Exports
 data/*.csv
+*.csv.tmp
+temp_exports/
 
-# React
+# React / Frontend
 node_modules/
 dist/
+dist-ssr/
 
 # IDE
 .vscode/
@@ -20,3 +34,4 @@ dist/
 
 # OS
 .DS_Store
+Thumbs.db

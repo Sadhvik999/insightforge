@@ -1,31 +1,26 @@
 import json
 import re
 import requests
+from app.llm_client import chat_completion
+
 OLLAMA_URL = "http://localhost:11434/api/chat"
 MODEL_NAME = "qwen2.5:1.5b"
 MAX_TOOL_CALLS = 5
-def ask_manager(messages, tools):
-    """Ask Qwen what to do next using conversation history."""
-    payload = {
-        "model": MODEL_NAME,
-        "messages": messages,
-        "tools": tools,
-        "stream": False,
-        "options": {
-            "temperature": 0
-        }
-    }
+
+
+def ask_manager(messages, tools, **kwargs):
+    """Ask AI provider what to do next using conversation history."""
+    session_config = kwargs.get("session_config")
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json=payload,
-            timeout=120
+        return chat_completion(
+            messages=messages,
+            tools=tools,
+            temperature=0.0,
+            session_config=session_config
         )
-        response.raise_for_status()
-        return response.json()["message"]
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         raise RuntimeError(
-            f"Manager could not communicate with Ollama: {e}"
+            f"Manager could not communicate with AI provider: {e}"
         )
 CONVERSATIONAL_GREETINGS = {
     "hello", "hi", "hey", "greetings", "thanks", "thank you", "bye", "goodbye", "help"
@@ -269,7 +264,8 @@ def run_manager(
     tools,
     tool_executor,
     max_tool_calls=MAX_TOOL_CALLS,
-    conversation_history=None
+    conversation_history=None,
+    session_config=None
 ):
     """
     Coordinate multiple approved Python tool executions.
@@ -358,10 +354,23 @@ def run_manager(
     if not active_tools:
         active_tools = tools
     while tool_count < max_tool_calls:
-        message = ask_manager(
-            messages,
-            active_tools
-        )
+        try:
+            if session_config is not None:
+                message = ask_manager(
+                    messages,
+                    active_tools,
+                    session_config=session_config
+                )
+            else:
+                message = ask_manager(
+                    messages,
+                    active_tools
+                )
+        except TypeError:
+            message = ask_manager(
+                messages,
+                active_tools
+            )
         tool_calls = message.get("tool_calls", [])
         if not tool_calls:
             # Check if this is a zero-tool text response for an analytical/visualization request

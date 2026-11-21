@@ -6,7 +6,6 @@ import {
   X,
   AlertTriangle,
   RefreshCw,
-  Sparkles,
   Loader2,
   Server,
 } from 'lucide-react'
@@ -140,7 +139,7 @@ export default function UploadZone({ dataset, onDatasetLoaded, onDatasetCleared 
         <div className="upload-active-card">
           <div className="upload-active-header">
             <div className="upload-active-icon-box">
-              <FileSpreadsheet className="w-6 h-6 text-emerald-400" />
+              <FileSpreadsheet className="w-6 h-6 status-ready-icon" />
             </div>
             <div className="upload-active-info">
               <div className="upload-filename-row">
@@ -181,7 +180,7 @@ export default function UploadZone({ dataset, onDatasetLoaded, onDatasetCleared 
           </div>
 
           <div className="upload-ready-banner">
-            <Sparkles className="w-4 h-4 text-purple-400 flex-shrink-0" />
+            <CheckCircle2 className="w-4 h-4 status-ready-icon flex-shrink-0" />
             <span>
               <strong>Backend Inspection Complete:</strong> Full dataset verified across{' '}
               {dataset.totalRows.toLocaleString()} rows. Descriptive statistics, column types, and data quality metrics are active.
@@ -214,13 +213,13 @@ export default function UploadZone({ dataset, onDatasetLoaded, onDatasetCleared 
             {isLoading ? (
               <div className="dropzone-loading-state">
                 <div className="dropzone-icon-ring loading-pulse">
-                  <Loader2 className="w-7 h-7 text-purple-400 animate-spin" />
+                  <Loader2 className="w-7 h-7 dropzone-loading-icon animate-spin" />
                 </div>
                 <h3 className="dropzone-title">Analyzing Dataset with FastAPI...</h3>
                 <p className="dropzone-subtitle">{loadingStep}</p>
                 <div className="dropzone-badges">
                   <span className="dropzone-pill">
-                    <Server className="w-3 h-3 mr-1 inline text-purple-400" />
+                    <Server className="w-3 h-3 mr-1 inline dropzone-server-icon" />
                     POST /inspect
                   </span>
                   <span className="dropzone-pill">Full Dataset Inspection</span>
@@ -229,7 +228,7 @@ export default function UploadZone({ dataset, onDatasetLoaded, onDatasetCleared 
             ) : (
               <>
                 <div className="dropzone-icon-ring">
-                  <Upload className="w-6 h-6 text-purple-400 dropzone-icon" />
+                  <Upload className="w-6 h-6 dropzone-icon" />
                 </div>
 
                 <h3 className="dropzone-title">
@@ -242,7 +241,7 @@ export default function UploadZone({ dataset, onDatasetLoaded, onDatasetCleared 
                 </p>
 
                 <div className="dropzone-badges">
-                  <span className="dropzone-pill">Format: .CSV</span>
+                  <span className="dropzone-pill">Format: CSV</span>
                   <span className="dropzone-pill">Backend Verified (FastAPI)</span>
                   <span className="dropzone-pill">Tested on Sample - Superstore.csv</span>
                 </div>
@@ -254,7 +253,7 @@ export default function UploadZone({ dataset, onDatasetLoaded, onDatasetCleared 
 
       {errorMessage && (
         <div className="upload-error-alert" role="alert">
-          <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0" />
+          <AlertTriangle className="w-5 h-5 alert-rose-icon flex-shrink-0" />
           <div className="error-text-content">
             <span className="error-title">Upload & Inspection Error</span>
             <p className="error-detail">{errorMessage}</p>

@@ -5,26 +5,40 @@ export default function StatCard({
   value,
   subtitle,
   icon: Icon,
-  accent = 'purple',
+  accent,
+  isWarning = false,
   hasData = false,
   trendText,
 }) {
-  const accentClasses = {
-    purple: 'stat-accent-purple',
-    blue: 'stat-accent-blue',
-    amber: 'stat-accent-amber',
-    emerald: 'stat-accent-emerald',
-  }
-
-  const selectedAccent = accentClasses[accent] || accentClasses.purple
+  // Tweak 1: Unify metric card icons to a single neutral (#71717A),
+  // and only use color when an actual warning or error triggers.
+  const isAlert =
+    isWarning ||
+    (hasData && (title === 'Missing Values' || title === 'Duplicate Rows') && Number(value) > 0) ||
+    accent === 'warning' ||
+    accent === 'danger'
 
   return (
-    <div className={`stat-card ${selectedAccent} ${!hasData ? 'stat-card-empty' : ''}`}>
-      <div className="stat-card-glow" />
+    <div
+      className={`stat-card ${
+        isAlert ? 'stat-card-warning' : 'stat-card-neutral'
+      } ${!hasData ? 'stat-card-empty' : ''}`}
+    >
       <div className="stat-card-inner">
         <div className="stat-header">
-          <span className="stat-title">{title}</span>
-          <div className="stat-icon-wrap">
+          <div className="stat-title-wrap">
+            <span className="stat-title">{title}</span>
+            {isAlert && (
+              <span className="stat-warning-badge" aria-hidden="true">
+                Requires Review
+              </span>
+            )}
+          </div>
+          <div
+            className={`stat-icon-wrap ${
+              isAlert ? 'stat-icon-warning' : 'stat-icon-neutral'
+            }`}
+          >
             {Icon && <Icon className="w-4 h-4 stat-icon" />}
           </div>
         </div>
@@ -32,13 +46,17 @@ export default function StatCard({
         <div className="stat-value-row">
           <span className="stat-value">
             {hasData ? (
-              typeof value === 'number' ? value.toLocaleString() : value
+              typeof value === 'number' ? (
+                value.toLocaleString()
+              ) : (
+                value
+              )
             ) : (
               <span className="stat-placeholder">--</span>
             )}
           </span>
           {hasData && trendText && (
-            <span className="stat-trend">
+            <span className={`stat-trend ${isAlert ? 'stat-trend-warning' : ''}`}>
               <ArrowUpRight className="w-3 h-3" />
               {trendText}
             </span>

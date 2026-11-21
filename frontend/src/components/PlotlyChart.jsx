@@ -22,16 +22,22 @@ export default function PlotlyChart({ figure, className = '' }) {
       ...incomingLayout,
       autosize: true,
       paper_bgcolor: 'transparent',
-      plot_bgcolor: 'rgba(11, 17, 32, 0.6)',
+      plot_bgcolor: 'transparent',
+      colorway: [
+        '#C2593F', // Primary Accent: Muted Terracotta
+        '#1C1917', // Verified / Deep Black-Brown
+        '#78716C', // Muted Stone Text
+        '#DC2626', // Soft Brick / Crimson Warning
+      ],
       font: {
-        family: 'system-ui, -apple-system, sans-serif',
-        color: '#cbd5e1',
+        family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif',
+        color: '#78716C',
         size: 11,
         ...(incomingLayout.font || {}),
       },
       title: {
         font: {
-          color: '#f8fafc',
+          color: '#1C1917',
           size: 13,
           weight: 600,
         },
@@ -49,24 +55,30 @@ export default function PlotlyChart({ figure, className = '' }) {
         ...(incomingLayout.margin || {}),
       },
       xaxis: {
-        gridcolor: 'rgba(255, 255, 255, 0.06)',
-        zerolinecolor: 'rgba(255, 255, 255, 0.1)',
-        tickfont: { color: '#94a3b8', size: 10 },
-        titlefont: { color: '#c4b5fd', size: 11 },
+        gridcolor: '#F7F5F0',
+        zerolinecolor: '#E6E2D8',
+        tickfont: { color: '#78716C', size: 10 },
+        titlefont: { color: '#78716C', size: 11, weight: 500 },
         ...(incomingLayout.xaxis || {}),
       },
       yaxis: {
-        gridcolor: 'rgba(255, 255, 255, 0.06)',
-        zerolinecolor: 'rgba(255, 255, 255, 0.1)',
-        tickfont: { color: '#94a3b8', size: 10 },
-        titlefont: { color: '#c4b5fd', size: 11 },
+        gridcolor: '#F7F5F0',
+        zerolinecolor: '#E6E2D8',
+        tickfont: { color: '#78716C', size: 10 },
+        titlefont: { color: '#78716C', size: 11, weight: 500 },
         ...(incomingLayout.yaxis || {}),
       },
       legend: {
-        font: { color: '#cbd5e1', size: 10 },
-        bgcolor: 'rgba(14, 20, 36, 0.7)',
-        bordercolor: 'rgba(255, 255, 255, 0.1)',
+        font: { color: '#78716C', size: 10 },
+        bgcolor: '#FFFFFF',
+        bordercolor: '#E6E2D8',
         ...(incomingLayout.legend || {}),
+      },
+      hoverlabel: {
+        bgcolor: '#FFFFFF',
+        bordercolor: '#E6E2D8',
+        font: { family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif', color: '#1C1917', size: 11 },
+        ...(incomingLayout.hoverlabel || {}),
       },
     }
 

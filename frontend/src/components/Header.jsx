@@ -3,11 +3,10 @@ import {
   FileSpreadsheet,
   AlertCircle,
   CheckCircle2,
-  User,
-  Sparkles,
+  Cpu,
 } from 'lucide-react'
 
-export default function Header({ activeTab, dataset, onToggleSidebar }) {
+export default function Header({ activeTab, dataset, onToggleSidebar, aiConfig = {} }) {
   const titles = {
     overview: {
       title: 'Dashboard Overview',
@@ -19,7 +18,7 @@ export default function Header({ activeTab, dataset, onToggleSidebar }) {
     },
     analyst: {
       title: 'AI Analyst Chat',
-      subtitle: 'Interact in natural language with local Qwen 2.5 1.5B',
+      subtitle: 'Interact in natural language with your configured AI engine',
     },
     cleaning: {
       title: 'Data Cleaning Studio',
@@ -27,11 +26,26 @@ export default function Header({ activeTab, dataset, onToggleSidebar }) {
     },
     settings: {
       title: 'Platform Settings',
-      subtitle: 'Manage local inference settings, RAM limits and API configs',
+      subtitle: 'Configure AI provider credentials, model parameters, and local inference',
     },
   }
 
   const current = titles[activeTab] || titles.overview
+
+  const providerDisplay =
+    aiConfig.provider === 'ollama' || !aiConfig.provider
+      ? 'Local Ollama'
+      : aiConfig.provider === 'openai_compatible' || aiConfig.provider === 'openai'
+      ? 'OpenAI'
+      : aiConfig.provider === 'groq'
+      ? 'Groq Cloud'
+      : aiConfig.provider === 'openrouter'
+      ? 'OpenRouter'
+      : aiConfig.provider === 'custom'
+      ? 'Custom API'
+      : aiConfig.provider
+
+  const modelDisplay = aiConfig.model || 'qwen2.5:1.5b'
 
   return (
     <header className="app-header">
@@ -58,37 +72,40 @@ export default function Header({ activeTab, dataset, onToggleSidebar }) {
       <div className="header-right">
         {/* Dataset Status Badge */}
         {dataset && dataset.fileName ? (
-          <div className="dataset-status-pill dataset-status-ready" title={`File: ${dataset.fileName} (${dataset.totalRows.toLocaleString()} rows)`}>
-            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+          <div
+            className="dataset-status-pill dataset-status-ready"
+            title={`File: ${dataset.fileName} (${dataset.totalRows.toLocaleString()} rows)`}
+          >
+            <FileSpreadsheet className="w-4 h-4 status-ready-icon" />
             <div className="status-text-group">
               <span className="status-primary">{dataset.fileName}</span>
               <span className="status-secondary">
                 {dataset.totalRows.toLocaleString()} rows • {dataset.totalColumns} cols
               </span>
             </div>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 status-check-icon" />
+            <CheckCircle2 className="w-4 h-4 status-check-icon" />
           </div>
         ) : (
           <div className="dataset-status-pill dataset-status-empty">
-            <AlertCircle className="w-4 h-4 text-amber-400" />
+            <AlertCircle className="w-4 h-4 status-empty-icon" />
             <span className="status-primary">No Dataset Uploaded</span>
           </div>
         )}
 
-        {/* User Profile Pill */}
-        <div className="user-profile-pill" title="Local Data Analyst (Offline Session)">
+        {/* AI Provider Status Pill */}
+        <div
+          className="user-profile-pill"
+          title={`Active Engine: ${providerDisplay} (${modelDisplay})`}
+        >
           <div className="user-avatar-wrap">
             <div className="user-avatar">
-              <User className="w-4 h-4 text-purple-300" />
+              <Cpu className="w-4 h-4 user-avatar-icon" />
             </div>
             <span className="user-status-dot" />
           </div>
           <div className="user-meta">
-            <span className="user-name">Local Analyst</span>
-            <span className="user-role">
-              <Sparkles className="w-2.5 h-2.5 text-purple-400 inline mr-0.5" />
-              Offline M3
-            </span>
+            <span className="user-name">{providerDisplay}</span>
+            <span className="user-role">{modelDisplay}</span>
           </div>
         </div>
       </div>

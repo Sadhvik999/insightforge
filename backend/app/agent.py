@@ -17,6 +17,7 @@ from app.manager import (
     has_valid_visualization
 )
 from app.response_generator import generate_multi_analysis_response
+from app.llm_client import chat_completion
 
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
@@ -222,47 +223,34 @@ def ask_qwen(df, question, tools):
         ).columns.tolist()
     }
 
-    payload = {
-        "model": MODEL_NAME,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are an AI data analyst. "
-                    "Choose the most appropriate available Python tool. "
-                    "Use exact column names from the dataset. "
-                    "Never invent column names or results. "
-                    "Use only one tool per question. "
-                    "For visualization questions, use visualize_data. "
-                    "For histogram, provide only x_column. "
-                    "For bar, line and scatter, provide both x_column and y_column. "
-                    f"Dataset schema: {schema}"
-                )
-            },
-            {
-                "role": "user",
-                "content": question
-            }
-        ],
-        "tools": tools,
-        "stream": False,
-        "options": {
-            "temperature": 0
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are an AI data analyst. "
+                "Choose the most appropriate available Python tool. "
+                "Use exact column names from the dataset. "
+                "Never invent column names or results. "
+                "Use only one tool per question. "
+                "For visualization questions, use visualize_data. "
+                "For histogram, provide only x_column. "
+                "For bar, line and scatter, provide both x_column and y_column. "
+                f"Dataset schema: {schema}"
+            )
+        },
+        {
+            "role": "user",
+            "content": question
         }
-    }
+    ]
 
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json=payload,
-            timeout=120
+        return chat_completion(
+            messages=messages,
+            tools=tools,
+            temperature=0.0
         )
-
-        response.raise_for_status()
-
-        return response.json()["message"]
-
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         raise RuntimeError(
             f"Could not communicate with Ollama: {e}"
         )
@@ -470,7 +458,8 @@ def execute_tool(df, tool_call):
 def analyze_dataset(
     df,
     question,
-    conversation_history=None
+    conversation_history=None,
+    session_config=None
 ):
     """
     Complete multi-step AI agent workflow:
@@ -498,7 +487,8 @@ def analyze_dataset(
         question=question,
         tools=tools,
         tool_executor=execute_tool,
-        conversation_history=conversation_history
+        conversation_history=conversation_history,
+        session_config=session_config
     )
 
     tool_results = manager_result["tool_results"]
@@ -521,7 +511,8 @@ def analyze_dataset(
     explanation = generate_multi_analysis_response(
         question=question,
         tool_results=tool_results,
-        final_message=manager_result["final_message"]
+        final_message=manager_result["final_message"],
+        session_config=session_config
     )
 
     # Preserve the original single-tool response fields

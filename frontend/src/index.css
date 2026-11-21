@@ -1,46 +1,84 @@
 /* ==========================================================================
-   InsightForge - Modern Dark SaaS Theme Global Styles
+   InsightForge - Modern Editorial SaaS Design System & Tokens
+   Parchment & Terracotta Aesthetic (Warm Parchment, Pure White Cards, 1px Borders)
    ========================================================================== */
 
 :root {
-  /* Color Palette */
-  --bg-base: #080c15;
-  --bg-surface: #0e1424;
-  --bg-card: #131b2e;
-  --bg-card-hover: #18233c;
-  --bg-card-inner: #0b1120;
+  /* Color Palette - Strict 5-Token Specification */
+  --bg-base: #F7F5F0;          /* App Background: Warm Parchment */
+  --bg-surface: #FFFFFF;       /* Sidebar & Cards: Pure White */
+  --bg-card: #FFFFFF;          /* Pure White Card Surface */
+  --bg-card-hover: #F7F5F0;    /* Warm Parchment Subtle Hover */
+  --bg-card-inner: #F7F5F0;    /* Warm Parchment Inner Surface */
+  --bg-subtle: #F7F5F0;        /* Warm Parchment Active / Pill Background */
+  --bg-dropzone: #F7F5F0;      /* Warm Parchment Dropzone Area */
+  --bg-input: #FFFFFF;         /* Pure White Input Background */
 
-  --border-subtle: rgba(255, 255, 255, 0.07);
-  --border-card: rgba(255, 255, 255, 0.1);
-  --border-active: rgba(139, 92, 246, 0.4);
+  /* Borders: 1px solid #E6E2D8 */
+  --border-subtle: #E6E2D8;    /* 1px solid #E6E2D8 border */
+  --border-card: #E6E2D8;      /* 1px solid #E6E2D8 border */
+  --border-active: #C2593F;    /* Primary Accent active border */
+  --border-input: #E6E2D8;     /* 1px solid #E6E2D8 border */
+  --border-dashed: #E6E2D8;    /* 1px dashed #E6E2D8 border */
+  --border-dropzone: #E6E2D8;  /* 1px solid #E6E2D8 border */
 
-  /* Accents */
-  --accent-purple: #8b5cf6;
-  --accent-indigo: #6366f1;
-  --accent-blue: #3b82f6;
-  --accent-emerald: #10b981;
-  --accent-amber: #f59e0b;
-  --accent-rose: #f43f5e;
+  /* Primary Accent: #C2593F (Muted Terracotta) */
+  --accent-primary: #C2593F;
+  --accent-primary-hover: #A9472E;
+  --accent-primary-active: #943E27;
+  --accent-muted: rgba(194, 89, 63, 0.08);
+  --accent-blue: #C2593F;      /* Primary accent mapping */
+  --accent-terracotta: #C2593F;
+  --accent-purple: #C2593F;    /* Unified mapping */
 
-  /* Text & Labels */
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --text-dim: #475569;
+  /* Warnings: Soft Brick / Crimson (#DC2626) */
+  --accent-warning: #DC2626;
+  --accent-rose: #DC2626;
+  --accent-rose-muted: rgba(220, 38, 38, 0.08);
+  --badge-warning-bg: #F7F5F0;
+  --badge-warning-border: #DC2626;
+  --badge-warning-text: #DC2626;
+
+  /* Verified / Ready / Success: Black / Dark Brown (#1C1917) */
+  --accent-verified: #1C1917;
+  --accent-emerald: #1C1917;
+  --accent-emerald-muted: rgba(28, 25, 23, 0.08);
+  --badge-verified-bg: #F7F5F0;
+  --badge-verified-border: #E6E2D8;
+  --badge-verified-text: #1C1917;
+
+  /* Semantic status indicators */
+  --accent-amber: #DC2626;
+
+  /* Metric Card Neutral Icon */
+  --icon-neutral: #78716C;     /* Muted Text #78716C */
+  --icon-neutral-bg: #F7F5F0;  /* App Background #F7F5F0 */
+  --icon-neutral-border: #E6E2D8; /* 1px solid #E6E2D8 */
+
+  /* Primary Text: #1C1917 | Muted Text: #78716C */
+  --text-primary: #1C1917;     /* Primary Text: Deep Stone 900 */
+  --text-secondary: #78716C;   /* Muted Text: Stone 500 */
+  --text-muted: #78716C;       /* Muted Text: Stone 500 */
+  --text-dim: #78716C;         /* Muted Text: Stone 500 */
 
   /* Typography */
-  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
 
-  /* Elevation */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 25px -5px rgba(139, 92, 246, 0.15);
+  /* Elevation - 1px crisp borders instead of heavy drop shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(28, 25, 23, 0.03);
+  --shadow-md: 0 2px 4px 0 rgba(28, 25, 23, 0.04);
+  --shadow-lg: 0 4px 8px -1px rgba(28, 25, 23, 0.05);
+
+  /* Border Radii */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
 
   /* Layout */
-  --sidebar-width: 260px;
-  --header-height: 70px;
+  --sidebar-width: 250px;
+  --header-height: 64px;
 }
 
 *, *::before, *::after {
@@ -65,6 +103,7 @@ html, body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  background-color: var(--bg-base);
 }
 
 /* Custom Scrollbars */
@@ -74,22 +113,22 @@ html, body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-surface);
+  background: var(--bg-base);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-card);
+  background: var(--border-subtle);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--accent-purple);
+  background: var(--text-dim);
 }
 
 /* Selection */
 ::selection {
-  background: rgba(139, 92, 246, 0.35);
-  color: #fff;
+  background: rgba(194, 89, 63, 0.18);
+  color: var(--text-primary);
 }
 
 /* Typography Defaults */
@@ -107,6 +146,7 @@ button {
   outline: none;
 }
 
-input, textarea {
+input, textarea, select {
   font-family: inherit;
+  color: var(--text-primary);
 }

@@ -2,15 +2,21 @@ import {
   LayoutDashboard,
   TableProperties,
   Bot,
-  Sparkles,
+  SlidersHorizontal,
   Settings,
   X,
   Cpu,
   ShieldCheck,
-  Flame,
+  Layers,
 } from 'lucide-react'
 
-export default function Sidebar({ activeTab, onSelectTab, isOpen, onClose }) {
+export default function Sidebar({
+  activeTab,
+  onSelectTab,
+  isOpen,
+  onClose,
+  aiConfig = {},
+}) {
   const navItems = [
     {
       id: 'overview',
@@ -28,22 +34,37 @@ export default function Sidebar({ activeTab, onSelectTab, isOpen, onClose }) {
       id: 'analyst',
       label: 'AI Analyst',
       icon: Bot,
-      badge: 'Local Qwen',
+      badge: aiConfig.provider && aiConfig.provider !== 'ollama' ? 'BYOK' : 'Local',
       description: 'Natural language analysis',
     },
     {
       id: 'cleaning',
       label: 'Data Cleaning',
-      icon: Sparkles,
+      icon: SlidersHorizontal,
       description: 'Deduplication & imputation',
     },
     {
       id: 'settings',
       label: 'Settings',
       icon: Settings,
-      description: 'Ollama & system parameters',
+      description: 'AI provider & platform parameters',
     },
   ]
+
+  const providerLabel =
+    aiConfig.provider === 'ollama' || !aiConfig.provider
+      ? 'Ollama (Local)'
+      : aiConfig.provider === 'openai_compatible' || aiConfig.provider === 'openai'
+      ? 'OpenAI'
+      : aiConfig.provider === 'groq'
+      ? 'Groq Cloud'
+      : aiConfig.provider === 'openrouter'
+      ? 'OpenRouter'
+      : aiConfig.provider === 'custom'
+      ? 'Custom API'
+      : aiConfig.provider
+
+  const modelLabel = aiConfig.model || 'qwen2.5:1.5b'
 
   return (
     <>
@@ -60,9 +81,8 @@ export default function Sidebar({ activeTab, onSelectTab, isOpen, onClose }) {
         {/* Brand Header */}
         <div className="sidebar-brand">
           <div className="brand-logo-wrap">
-            <div className="brand-logo-glow" />
             <div className="brand-icon">
-              <Flame className="w-5 h-5 text-purple-400" />
+              <Layers className="w-5 h-5 brand-icon-svg" />
             </div>
           </div>
           <div className="brand-info">
@@ -70,7 +90,7 @@ export default function Sidebar({ activeTab, onSelectTab, isOpen, onClose }) {
               <span className="brand-name">InsightForge</span>
               <span className="brand-tag">v1.0</span>
             </div>
-            <span className="brand-subtitle">AI Data Analyst</span>
+            <span className="brand-subtitle">AI Data Analytics</span>
           </div>
 
           <button
@@ -115,24 +135,32 @@ export default function Sidebar({ activeTab, onSelectTab, isOpen, onClose }) {
           </ul>
         </nav>
 
-        {/* System & Hardware Health Pill */}
+        {/* System & Hardware Health Card */}
         <div className="sidebar-system-card">
           <div className="system-card-header">
             <div className="system-indicator">
               <span className="system-indicator-dot" />
-              <span className="system-status-text">Local Engine Active</span>
+              <span className="system-status-text">Engine Active</span>
             </div>
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <ShieldCheck className="w-4 h-4 sidebar-shield-icon" />
           </div>
 
           <div className="system-meta-item">
-            <Cpu className="w-3.5 h-3.5 text-purple-400" />
-            <span>qwen2.5:1.5b (Ollama)</span>
+            <Cpu className="w-3.5 h-3.5 sidebar-cpu-icon flex-shrink-0" />
+            <span className="truncate">{modelLabel}</span>
           </div>
 
           <div className="system-tags-row">
-            <span className="system-pill">M3 8GB RAM</span>
-            <span className="system-pill system-pill-free">₹0 API Cost</span>
+            <span className="system-pill">{providerLabel}</span>
+            <span
+              className={`system-pill ${
+                aiConfig.provider && aiConfig.provider !== 'ollama'
+                  ? 'system-pill-cloud'
+                  : 'system-pill-free'
+              }`}
+            >
+              {aiConfig.provider && aiConfig.provider !== 'ollama' ? 'BYOK' : 'Free $0'}
+            </span>
           </div>
         </div>
       </aside>

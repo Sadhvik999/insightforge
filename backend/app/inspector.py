@@ -5,7 +5,7 @@ from .analyzer import (
     correlation_analysis
 )
 
-from .cleaner import clean_dataset
+from .cleaner import clean_dataset, analyze_missing_values
 
 
 def inspect_dataset(df, clean=False):
@@ -38,6 +38,7 @@ def inspect_dataset(df, clean=False):
 
     # 5. Missing values
     report["missing_values"] = working_df.isnull().sum().to_dict()
+    report["missing_value_intelligence"] = analyze_missing_values(working_df, threshold=75.0)
 
     # 6. Duplicate rows
     report["duplicate_rows"] = int(working_df.duplicated().sum())

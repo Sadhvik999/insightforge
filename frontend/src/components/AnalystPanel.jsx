@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import {
   Bot,
   Send,
-  Sparkles,
+  Activity,
   User,
   Info,
   CornerDownLeft,
@@ -23,13 +23,14 @@ const initialWelcomeMessage = {
   sender: 'ai',
   timestamp: 'Ready',
   text: 'Hello! I am your InsightForge local AI data analyst. Upload a CSV file and ask me about distributions, top categories, correlations, outlier detection, or interactive charts.',
-  tags: ['Local Qwen 2.5:1.5b', 'Plotly Engine', 'Privacy Safe', 'Zero Cost'],
+  tags: ['AI Engine Ready', 'Plotly Engine', 'Privacy Safe', 'Session Isolated'],
 }
 
 export default function AnalystPanel({
   dataset,
   conversationId: externalConversationId,
   onConversationIdChange,
+  sessionId,
   messages: externalMessages,
   onMessagesChange,
   onFigureGenerated,
@@ -125,6 +126,7 @@ export default function AnalystPanel({
         question: query,
         file: isFirstTurn ? dataset.file : null,
         conversationId: isFirstTurn ? null : currentConversationId,
+        sessionId,
       })
 
       if (response?.conversation_id) {
@@ -315,7 +317,7 @@ export default function AnalystPanel({
           </div>
         ) : dataset?.fileName ? (
           <div className="analyst-banner-ready">
-            <Sparkles className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+            <Activity className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
             <span>
               Ready: <strong>{dataset.fileName}</strong> loaded ({dataset.totalRows?.toLocaleString()} rows). Ask a question below to begin.
             </span>
@@ -398,7 +400,7 @@ export default function AnalystPanel({
                   {!msg.isError && msg.keyFindings && msg.keyFindings.length > 0 && (
                     <div className="analyst-findings-block">
                       <div className="findings-header">
-                        <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                        <Activity className="w-3.5 h-3.5 text-blue-400" />
                         <span>Key Findings</span>
                       </div>
                       <ul className="findings-list">
@@ -455,7 +457,7 @@ export default function AnalystPanel({
                     <div className="message-tags-list">
                       {msg.tags.map((tag) => (
                         <span key={tag} className="message-tag-pill">
-                          <Sparkles className="w-3 h-3 text-purple-400 mr-1" />
+                          <Activity className="w-3 h-3 text-blue-400 mr-1" />
                           {tag}
                         </span>
                       ))}
@@ -506,7 +508,7 @@ export default function AnalystPanel({
                   : `Ask: "${q}"`
               }
             >
-              <Sparkles className="w-3 h-3 text-purple-400 mr-1" />
+              <Activity className="w-3 h-3 text-blue-400 mr-1" />
               <span>{q}</span>
             </button>
           ))}

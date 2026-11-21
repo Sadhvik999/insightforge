@@ -1,7 +1,7 @@
 
 import json
 import requests
-
+from app.llm_client import chat_completion
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
 MODEL_NAME = "qwen2.5:1.5b"
@@ -171,11 +171,12 @@ def generate_aggregate_response(arguments, results, question=None):
     }
 
 
-def _generate_llm_response(question, evidence):
+def _generate_llm_response(question, evidence, **kwargs):
     """
-    Ask the local Qwen model to explain supplied evidence.
+    Ask the configured AI model to explain supplied evidence.
     Python remains responsible for actual calculations.
     """
+    session_config = kwargs.get("session_config")
 
     evidence_text = json.dumps(evidence, default=str)
 
@@ -187,52 +188,53 @@ def _generate_llm_response(question, evidence):
             + "\n[Results truncated for explanation.]"
         )
 
-    payload = {
-        "model": MODEL_NAME,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are an AI data analyst. "
-                    "Explain the supplied Python analysis results. "
-                    "Do not calculate new statistics. "
-                    "Do not invent values, columns, or findings. "
-                    "Use only facts supported by the evidence. "
-                    "If evidence is insufficient, say so. "
-                    "Return valid JSON with exactly two keys: "
-                    "summary and key_findings. "
-                    "summary must be a short string. "
-                    "key_findings must be a list of strings. "
-                    "Each key finding must be a complete sentence. "
-                    "Do not include Markdown or extra text."
-                )
-            },
-            {
-                "role": "user",
-                "content": (
-                    f"Question: {question}\n"
-                    f"Actual Python evidence: {evidence_text}"
-                )
-            }
-        ],
-        "stream": False,
-        "format": "json",
-        "options": {
-            "temperature": 0
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are an AI data analyst. "
+                "Explain the supplied Python analysis results. "
+                "Do not calculate new statistics. "
+                "Do not invent values, columns, or findings. "
+                "Use only facts supported by the evidence. "
+                "If evidence is insufficient, say so. "
+                "Return valid JSON with exactly two keys: "
+                "summary and key_findings. "
+                "summary must be a short string. "
+                "key_findings must be a list of strings. "
+                "Each key finding must be a complete sentence. "
+                "Do not include Markdown or extra text."
+            )
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Question: {question}\n"
+                f"Actual Python evidence: {evidence_text}"
+            )
         }
-    }
+    ]
 
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json=payload,
-            timeout=120
+        response_msg = chat_completion(
+            messages=messages,
+            format_json=True,
+            temperature=0.0,
+            session_config=session_config
         )
 
-        response.raise_for_status()
-
-        content = response.json()["message"]["content"]
-        explanation = json.loads(content)
+        content = response_msg.get("content", "{}")
+        if isinstance(content, str):
+            clean_content = content.strip()
+            if clean_content.startswith("```"):
+                import re
+                clean_content = re.sub(r"^```(?:json)?\s*", "", clean_content)
+                clean_content = re.sub(r"\s*```$", "", clean_content)
+            explanation = json.loads(clean_content)
+        elif isinstance(content, dict):
+            explanation = content
+        else:
+            explanation = {}
 
         summary = explanation.get("summary")
         key_findings = explanation.get("key_findings")
@@ -251,14 +253,9 @@ def _generate_llm_response(question, evidence):
             "key_findings": key_findings
         }
 
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         raise RuntimeError(
             f"Could not generate AI explanation: {e}"
-        )
-
-    except (KeyError, json.JSONDecodeError, ValueError) as e:
-        raise RuntimeError(
-            f"Invalid AI explanation response: {e}"
         )
 
 
@@ -266,7 +263,8 @@ def generate_analysis_response(
     question,
     selected_tool,
     arguments,
-    results
+    results,
+    session_config=None
 ):
     """
     Generate a human-readable response for one tool.
@@ -296,14 +294,16 @@ def generate_analysis_response(
             "selected_tool": selected_tool,
             "arguments": arguments,
             "results": evidence
-        }
+        },
+        session_config=session_config
     )
 
 
 def generate_multi_analysis_response(
     question,
     tool_results,
-    final_message=None
+    final_message=None,
+    session_config=None
 ):
     """
     Generate one response from multiple tool executions.
@@ -381,10 +381,23 @@ def generate_multi_analysis_response(
             "manager_analysis": final_message
         })
 
-    ai_response = _generate_llm_response(
-        question,
-        evidence
-    )
+    try:
+        if session_config is not None:
+            ai_response = _generate_llm_response(
+                question,
+                evidence,
+                session_config=session_config
+            )
+        else:
+            ai_response = _generate_llm_response(
+                question,
+                evidence
+            )
+    except TypeError:
+        ai_response = _generate_llm_response(
+            question,
+            evidence
+        )
 
     # Add Python-generated aggregation findings.
     ai_response["key_findings"].extend(

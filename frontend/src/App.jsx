@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Database,
   Columns3,
   AlertTriangle,
   CopyCheck,
-  Sparkles,
+  Activity,
 } from 'lucide-react'
 
 import Sidebar from './components/Sidebar'
@@ -16,12 +16,37 @@ import AnalystPanel from './components/AnalystPanel'
 import VisualizationPanel from './components/VisualizationPanel'
 import DataCleaningPanel from './components/DataCleaningPanel'
 import SettingsPanel from './components/SettingsPanel'
+import { createAISession } from './api/client'
 
 import './App.css'
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('overview')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Authoritative server-issued cryptographically random session token (null until issued)
+  const [aiSessionId, setAiSessionId] = useState(null)
+
+  // Register or obtain authoritative server-side session token on mount
+  useEffect(() => {
+    let isMounted = true
+    createAISession().then((id) => {
+      if (isMounted && id) {
+        setAiSessionId(id)
+      }
+    }).catch(() => {})
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const [aiConfig, setAiConfig] = useState({
+    provider: 'ollama',
+    model: 'qwen2.5:1.5b',
+    baseUrl: 'http://localhost:11434',
+    hasApiKey: false,
+    maskedKey: null,
+  })
 
   // Dataset state (loaded from backend POST /inspect)
   const [dataset, setDataset] = useState(null)
@@ -36,7 +61,7 @@ export default function App() {
       sender: 'ai',
       timestamp: 'Ready',
       text: 'Hello! I am your InsightForge local AI data analyst. Upload a CSV file and ask me about distributions, top categories, correlations, outlier detection, or interactive charts.',
-      tags: ['Local Qwen 2.5:1.5b', 'Privacy Safe', 'Zero Cost'],
+      tags: ['AI Reasoning', 'Privacy Safe', 'Session Isolated'],
     },
   ])
 
@@ -69,6 +94,7 @@ export default function App() {
         onSelectTab={setActiveTab}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        aiConfig={aiConfig}
       />
 
       {/* Main Content Area */}
@@ -77,6 +103,7 @@ export default function App() {
           activeTab={activeTab}
           dataset={dataset}
           onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+          aiConfig={aiConfig}
         />
 
         <main className="app-content-body">
@@ -86,14 +113,14 @@ export default function App() {
               <div className="welcome-banner">
                 <div className="welcome-content">
                   <div className="welcome-tag">
-                    <Sparkles className="w-3.5 h-3.5 text-purple-400 mr-1.5" />
-                    Portfolio Project Showcase
+                    <Activity className="w-3.5 h-3.5 welcome-tag-icon mr-1.5" />
+                    AI Data Analytics Platform
                   </div>
                   <h2 className="welcome-title">
-                    Welcome to <span className="welcome-gradient-text">InsightForge</span>
+                    Welcome to <span className="brand-highlight">InsightForge</span>
                   </h2>
                   <p className="welcome-desc">
-                    Your autonomous local data analyst. Upload datasets in CSV format, query with conversational prompts, inspect distributions, and produce publication-ready charts.
+                    Your autonomous data intelligence engine. Upload datasets in CSV format, query with conversational prompts, inspect distributions, and produce publication-ready charts.
                   </p>
                 </div>
               </div>
@@ -116,7 +143,6 @@ export default function App() {
                       : null
                   }
                   icon={Database}
-                  accent="purple"
                   hasData={hasData}
                   trendText={hasData ? 'Backend Verified' : null}
                 />
@@ -129,7 +155,6 @@ export default function App() {
                       : null
                   }
                   icon={Columns3}
-                  accent="blue"
                   hasData={hasData}
                   trendText={hasData ? 'Backend Verified' : null}
                 />
@@ -142,7 +167,6 @@ export default function App() {
                       : null
                   }
                   icon={AlertTriangle}
-                  accent="amber"
                   hasData={hasData}
                   trendText={hasData ? 'Full Audit' : null}
                 />
@@ -155,7 +179,6 @@ export default function App() {
                       : null
                   }
                   icon={CopyCheck}
-                  accent="emerald"
                   hasData={hasData}
                   trendText={hasData ? 'Full Audit' : null}
                 />
@@ -173,6 +196,7 @@ export default function App() {
                   dataset={dataset}
                   conversationId={conversationId}
                   onConversationIdChange={setConversationId}
+                  sessionId={aiSessionId}
                   messages={chatMessages}
                   onMessagesChange={setChatMessages}
                   onFigureGenerated={setLatestFigure}
@@ -203,6 +227,7 @@ export default function App() {
                   dataset={dataset}
                   conversationId={conversationId}
                   onConversationIdChange={setConversationId}
+                  sessionId={aiSessionId}
                   messages={chatMessages}
                   onMessagesChange={setChatMessages}
                   onFigureGenerated={setLatestFigure}
@@ -225,7 +250,16 @@ export default function App() {
 
           {activeTab === 'settings' && (
             <div className="tab-view-flow">
-              <SettingsPanel />
+              <SettingsPanel
+                sessionId={aiSessionId}
+                activeConfig={aiConfig}
+                onConfigSaved={(saved) => {
+                  setAiConfig(saved)
+                  if (saved.session_id) {
+                    setAiSessionId(saved.session_id)
+                  }
+                }}
+              />
             </div>
           )}
         </main>
