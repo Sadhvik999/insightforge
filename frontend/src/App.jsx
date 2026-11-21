@@ -25,6 +25,7 @@ export default function App() {
 
   // Dataset state (loaded from backend POST /inspect)
   const [dataset, setDataset] = useState(null)
+  const [cleaningResult, setCleaningResult] = useState(null)
 
   // AI Analyst conversation state (conversation_id returned by backend POST /analyze)
   const [conversationId, setConversationId] = useState(null)
@@ -43,12 +44,14 @@ export default function App() {
     setDataset(newDataset)
     setConversationId(null) // Fresh dataset starts a fresh conversation session
     setLatestFigure(null)
+    setCleaningResult(null)
   }
 
   const handleDatasetCleared = () => {
     setDataset(null)
     setConversationId(null)
     setLatestFigure(null)
+    setCleaningResult(null)
   }
 
   const handleTriggerUpload = () => {
@@ -213,6 +216,8 @@ export default function App() {
             <div className="tab-view-flow">
               <DataCleaningPanel
                 dataset={dataset}
+                cleaningResult={cleaningResult}
+                onCleaningResultChange={setCleaningResult}
                 onNavigateToOverview={() => setActiveTab('overview')}
               />
             </div>

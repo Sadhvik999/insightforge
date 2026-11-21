@@ -564,3 +564,208 @@ def test_analyze_dataset_compound_request(monkeypatch, sample_df):
     assert response["tool_results"][1]["tool"] == "visualize_data"
     assert response["tool_results"][1]["results"]["figure"] == figure_data
     assert response["stop_reason"] == "completed"
+
+
+def test_execute_tool_aggregate_overall(sample_df):
+    call = make_tool_call(
+        "aggregate_data",
+        {
+            "target_column": "Sales",
+            "operation": "sum"
+        }
+    )
+    result = execute_tool(sample_df, call)
+    assert len(result) == 1
+    assert result[0]["result"] == 3300
+
+
+def test_execute_tool_aggregate_fallback_from_group_column(sample_df):
+    call = make_tool_call(
+        "aggregate_data",
+        {
+            "group_column": "Sales",
+            "operation": "sum"
+        }
+    )
+    result = execute_tool(sample_df, call)
+    assert len(result) == 1
+    assert result[0]["result"] == 3300
+
+
+def test_execute_tool_invalid_target_column(sample_df):
+    call = make_tool_call(
+        "aggregate_data",
+        {
+            "target_column": "UnknownCol",
+            "operation": "sum"
+        }
+    )
+    with pytest.raises(ValueError):
+        execute_tool(sample_df, call)
+
+
+def test_analyze_dataset_multi_metric_sales_and_profit(monkeypatch, sample_df):
+    def fake_run_manager(*args, **kwargs):
+        return {
+            "tool_results": [
+                {
+                    "tool": "aggregate_data",
+                    "arguments": {"target_column": "Sales", "operation": "sum"},
+                    "results": [{"result": 3300.0}]
+                },
+                {
+                    "tool": "aggregate_data",
+                    "arguments": {"target_column": "Profit", "operation": "sum"},
+                    "results": [{"result": 780.0}]
+                }
+            ],
+            "tool_calls_count": 2,
+            "final_message": "Total sales is 3,300.00 and total profit is 780.00.",
+            "stop_reason": "completed",
+            "conversation_history": []
+        }
+
+    monkeypatch.setattr("app.agent.run_manager", fake_run_manager)
+
+    response = analyze_dataset(
+        sample_df,
+        "What are the total sales and total profit in this dataset?"
+    )
+
+    assert len(response["tool_results"]) == 2
+    assert all(r["tool"] == "aggregate_data" for r in response["tool_results"])
+    assert "Sales" in response["summary"]
+    assert "Profit" in response["summary"]
+    assert "3,300" in response["summary"]
+    assert "780" in response["summary"]
+    assert len(response["key_findings"]) >= 2
+    assert any("Sales" in f for f in response["key_findings"])
+    assert any("Profit" in f for f in response["key_findings"])
+    assert response["stop_reason"] == "completed"
+
+
+def test_analyze_dataset_multi_metric_average_sales_and_profit(monkeypatch, sample_df):
+    def fake_run_manager(*args, **kwargs):
+        return {
+            "tool_results": [
+                {
+                    "tool": "aggregate_data",
+                    "arguments": {"target_column": "Sales", "operation": "mean"},
+                    "results": [{"result": 660.0}]
+                },
+                {
+                    "tool": "aggregate_data",
+                    "arguments": {"target_column": "Profit", "operation": "mean"},
+                    "results": [{"result": 156.0}]
+                }
+            ],
+            "tool_calls_count": 2,
+            "final_message": "Average sales is 660.00 and average profit is 156.00.",
+            "stop_reason": "completed",
+            "conversation_history": []
+        }
+
+    monkeypatch.setattr("app.agent.run_manager", fake_run_manager)
+
+    response = analyze_dataset(
+        sample_df,
+        "What are the average sales and average profit in this dataset?"
+    )
+
+    assert len(response["tool_results"]) == 2
+    assert all(r["tool"] == "aggregate_data" for r in response["tool_results"])
+    assert "Sales" in response["summary"]
+    assert "Profit" in response["summary"]
+    assert "660" in response["summary"]
+    assert "156" in response["summary"]
+    assert len(response["key_findings"]) >= 2
+    assert any("Sales" in f for f in response["key_findings"])
+    assert any("Profit" in f for f in response["key_findings"])
+    assert response["stop_reason"] == "completed"
+
+
+def test_analyze_dataset_single_metric_overall(monkeypatch, sample_df):
+    def fake_run_manager(*args, **kwargs):
+        return {
+            "tool_results": [
+                {
+                    "tool": "aggregate_data",
+                    "arguments": {"target_column": "Sales", "operation": "sum"},
+                    "results": [{"result": 3300.0}]
+                }
+            ],
+            "tool_calls_count": 1,
+            "final_message": "The total Sales is 3,300.00.",
+            "stop_reason": "completed",
+            "conversation_history": []
+        }
+
+    monkeypatch.setattr("app.agent.run_manager", fake_run_manager)
+
+    response = analyze_dataset(
+        sample_df,
+        "What is the total sales in this dataset?"
+    )
+
+    assert response["selected_tool"] == "aggregate_data"
+    assert len(response["tool_results"]) == 1
+    assert "Sales" in response["summary"]
+    assert "3,300" in response["summary"]
+    assert response["results"] == [{"result": 3300.0}]
+    assert response["stop_reason"] == "completed"
+
+
+def test_analyze_dataset_invalid_column_handling(monkeypatch, sample_df):
+    def fake_run_manager(*args, **kwargs):
+        return {
+            "tool_results": [],
+            "tool_calls_count": 1,
+            "final_message": "It seems there was an error with the target column. Could you please specify the correct column name for revenue?",
+            "stop_reason": "completed",
+            "conversation_history": []
+        }
+
+    monkeypatch.setattr("app.agent.run_manager", fake_run_manager)
+
+    with pytest.raises(ValueError) as excinfo:
+        analyze_dataset(sample_df, "What is the total revenue?")
+
+    assert "Could you please specify the correct column name" in str(excinfo.value)
+
+
+def test_analyze_dataset_multi_turn_aggregation(monkeypatch, sample_df):
+    captured_kwargs = {}
+
+    def fake_run_manager(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+        return {
+            "tool_results": [
+                {
+                    "tool": "aggregate_data",
+                    "arguments": {"target_column": "Profit", "operation": "sum"},
+                    "results": [{"result": 780.0}]
+                }
+            ],
+            "tool_calls_count": 1,
+            "final_message": "The total Profit is 780.00.",
+            "stop_reason": "completed",
+            "conversation_history": []
+        }
+
+    monkeypatch.setattr("app.agent.run_manager", fake_run_manager)
+
+    history = [
+        {"role": "user", "content": "What is the total sales?"},
+        {"role": "assistant", "content": "The total Sales is 3,300.00."}
+    ]
+
+    response = analyze_dataset(
+        sample_df,
+        "And what is the total profit?",
+        conversation_history=history
+    )
+
+    assert captured_kwargs.get("conversation_history") == history
+    assert response["selected_tool"] == "aggregate_data"
+    assert "Profit" in response["summary"]
+    assert "780" in response["summary"]

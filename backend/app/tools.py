@@ -136,35 +136,68 @@ def filter_data(df, column, operator, value=None):
 # TOOL 4: Perform dynamic group-by aggregation
 # --------------------------------------------------
 
-def aggregate_data(df, group_column, target_column, operation="mean"):
+def aggregate_data(df, group_column=None, target_column=None, operation="mean"):
     """
-    Group data and perform an aggregation.
+    Perform aggregation on a dataset.
+    Supports grouped aggregation (when group_column is provided)
+    and overall dataset aggregation (when group_column is None).
 
     Supported operations:
         mean, sum, min, max, count
     """
 
-    if group_column not in df.columns:
-        raise ValueError(f"Column not found: {group_column}")
+    if target_column is None and group_column is not None:
+        target_column = group_column
+        group_column = None
+    elif group_column == target_column:
+        group_column = None
 
-    if target_column not in df.columns:
-        raise ValueError(f"Column not found: {target_column}")
+    if target_column is None:
+        raise ValueError("Target column is required for aggregation.")
+
+    if isinstance(target_column, list):
+        if not target_column:
+            raise ValueError("Target column list cannot be empty.")
+        for col in target_column:
+            if col not in df.columns:
+                raise ValueError(f"Column not found: {col}")
+            if operation in ["mean", "sum", "min", "max"]:
+                if not pd.api.types.is_numeric_dtype(df[col]):
+                    raise ValueError(
+                        f"Target column must be numerical for {operation}"
+                    )
+    else:
+        if target_column not in df.columns:
+            raise ValueError(f"Column not found: {target_column}")
+
+        if operation in ["mean", "sum", "min", "max"]:
+            if not pd.api.types.is_numeric_dtype(df[target_column]):
+                raise ValueError(
+                    f"Target column must be numerical for {operation}"
+                )
+
+    if group_column is not None and group_column not in df.columns:
+        raise ValueError(f"Column not found: {group_column}")
 
     allowed_operations = ["mean", "sum", "min", "max", "count"]
 
     if operation not in allowed_operations:
         raise ValueError(f"Unsupported operation: {operation}")
 
-    if operation in ["mean", "sum", "min", "max"]:
-        if not pd.api.types.is_numeric_dtype(df[target_column]):
-            raise ValueError(
-                f"Target column must be numerical for {operation}"
-            )
-
-    result = (
-        df.groupby(group_column, dropna=False)[target_column]
-        .agg(operation)
-        .reset_index(name="result")
-    )
+    if group_column is not None:
+        result = (
+            df.groupby(group_column, dropna=False)[target_column]
+            .agg(operation)
+            .reset_index(name="result")
+        )
+    else:
+        if isinstance(target_column, list):
+            result = pd.DataFrame([
+                {"target_column": col, "result": df[col].agg(operation)}
+                for col in target_column
+            ])
+        else:
+            val = df[target_column].agg(operation)
+            result = pd.DataFrame([{"result": val}])
 
     return result

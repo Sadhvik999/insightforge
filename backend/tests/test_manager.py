@@ -1817,3 +1817,33 @@ def test_sanitize_tool_payload_mixed_real_and_unrelated_figure():
     assert data["caption"]["page"] == 12
     assert "chart_status" not in data["caption"]
     assert '"data":' not in sanitized
+
+
+def test_manager_executes_multiple_aggregations(monkeypatch, sample_df):
+    responses = [
+        make_message([
+            make_tool_call("aggregate_data", {"target_column": "Sales", "operation": "sum"}),
+            make_tool_call("aggregate_data", {"target_column": "Profit", "operation": "sum"})
+        ]),
+        make_message(content="Total sales and profit computed.")
+    ]
+
+    def fake_ask_manager(messages, tools):
+        return responses.pop(0)
+
+    monkeypatch.setattr("app.manager.ask_manager", fake_ask_manager)
+
+    def fake_executor_agg(df, tool_call):
+        return [{"result": 1000}]
+
+    result = run_manager(
+        sample_df,
+        "What are the total sales and total profit?",
+        [],
+        fake_executor_agg
+    )
+
+    assert result["tool_calls_count"] == 2
+    assert len(result["tool_results"]) == 2
+    assert result["stop_reason"] == "completed"
+    assert result["final_message"] == "Total sales and profit computed."

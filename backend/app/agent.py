@@ -99,27 +99,34 @@ def create_tools(df):
             "type": "function",
             "function": {
                 "name": "aggregate_data",
-                "description": "Group the dataset by a column and calculate mean, sum, min, max or count.",
+                "description": (
+                    "Calculate aggregate metrics (mean, sum, min, max, count) on a target numerical column. "
+                    "Optionally group by a category column. "
+                    "For overall dataset totals, averages, or metrics without grouping, specify target_column and operation without group_column."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "group_column": {
-                            "type": "string",
-                            "enum": all_columns
-                        },
                         "target_column": {
                             "type": "string",
+                            "description": "The numerical column to aggregate (e.g. Sales, Profit).",
                             "enum": all_columns
                         },
                         "operation": {
                             "type": "string",
+                            "description": "The aggregation operation to perform.",
                             "enum": [
                                 "mean", "sum", "min", "max", "count"
                             ]
+                        },
+                        "group_column": {
+                            "type": "string",
+                            "description": "Optional category column to group by (e.g. Region, Category). Omit when calculating overall dataset totals or averages.",
+                            "enum": all_columns
                         }
                     },
                     "required": [
-                        "group_column", "target_column", "operation"
+                        "target_column", "operation"
                     ]
                 }
             }
@@ -317,11 +324,20 @@ def execute_tool(df, tool_call):
         target_column = arguments.get("target_column")
         operation = arguments.get("operation")
 
-        if group_column not in df.columns:
-            raise ValueError("Invalid group column.")
+        if target_column is None and group_column is not None:
+            target_column = group_column
+            group_column = None
+        elif group_column == target_column:
+            group_column = None
 
-        if target_column not in df.columns:
+        if isinstance(target_column, list):
+            if not target_column or any(c not in df.columns for c in target_column):
+                raise ValueError("Invalid target column.")
+        elif target_column not in df.columns:
             raise ValueError("Invalid target column.")
+
+        if group_column is not None and group_column not in df.columns:
+            raise ValueError("Invalid group column.")
 
         if operation not in [
             "mean", "sum", "min", "max", "count"

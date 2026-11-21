@@ -212,3 +212,57 @@ def test_multi_analysis_handles_empty_results():
 
     assert response["summary"] == "No analysis results were available."
     assert response["key_findings"] == []
+
+
+def test_aggregate_response_overall_metric_sum():
+    arguments = {
+        "target_column": "Sales",
+        "operation": "sum"
+    }
+    results = [{"result": 2297200.86}]
+    response = generate_aggregate_response(arguments, results)
+    assert response["summary"] == "The total Sales is 2,297,200.86."
+    assert response["key_findings"] == ["Total Sales: 2,297,200.86."]
+
+
+def test_aggregate_response_overall_metric_mean():
+    arguments = {
+        "target_column": "Profit",
+        "operation": "mean"
+    }
+    results = [{"result": 28.66}]
+    response = generate_aggregate_response(arguments, results)
+    assert response["summary"] == "The average Profit is 28.66."
+    assert response["key_findings"] == ["Average Profit: 28.66."]
+
+
+def test_multi_analysis_with_multiple_overall_aggregations():
+    tool_results = [
+        {
+            "tool": "aggregate_data",
+            "arguments": {
+                "target_column": "Sales",
+                "operation": "sum"
+            },
+            "results": [{"result": 2297200.86}]
+        },
+        {
+            "tool": "aggregate_data",
+            "arguments": {
+                "target_column": "Profit",
+                "operation": "sum"
+            },
+            "results": [{"result": 286397.02}]
+        }
+    ]
+
+    response = generate_multi_analysis_response(
+        "What are the total sales and total profit?",
+        tool_results
+    )
+
+    assert "The total Sales is 2,297,200.86. The total Profit is 286,397.02." in response["summary"]
+    assert response["key_findings"] == [
+        "Total Sales: 2,297,200.86.",
+        "Total Profit: 286,397.02."
+    ]

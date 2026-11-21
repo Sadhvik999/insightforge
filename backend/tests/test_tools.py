@@ -163,3 +163,49 @@ def test_aggregate_data_non_numeric_mean(sample_df):
         aggregate_data(
             sample_df, "City", "Name", "mean"
         )
+
+
+def test_aggregate_data_overall_sum(sample_df):
+    result = aggregate_data(sample_df, target_column="Salary", operation="sum")
+    assert len(result) == 1
+    assert result["result"].iloc[0] == 200000
+
+
+def test_aggregate_data_overall_mean(sample_df):
+    result = aggregate_data(sample_df, target_column="Salary", operation="mean")
+    assert len(result) == 1
+    assert result["result"].iloc[0] == 40000.0
+
+
+def test_aggregate_data_multi_column(sample_df):
+    result = aggregate_data(
+        sample_df,
+        target_column=["Salary", "Age"],
+        operation="sum"
+    )
+    assert len(result) == 2
+    salary_res = result.loc[result["target_column"] == "Salary", "result"].iloc[0]
+    age_res = result.loc[result["target_column"] == "Age", "result"].iloc[0]
+    assert salary_res == 200000
+    assert age_res == 111
+
+
+def test_aggregate_data_same_group_and_target_fallback(sample_df):
+    result = aggregate_data(
+        sample_df,
+        group_column="Salary",
+        target_column="Salary",
+        operation="sum"
+    )
+    assert len(result) == 1
+    assert result["result"].iloc[0] == 200000
+
+
+def test_aggregate_data_missing_target_column(sample_df):
+    with pytest.raises(ValueError):
+        aggregate_data(sample_df, group_column="City", target_column=None)
+
+
+def test_aggregate_data_invalid_target_column(sample_df):
+    with pytest.raises(ValueError):
+        aggregate_data(sample_df, target_column="NonExistent")

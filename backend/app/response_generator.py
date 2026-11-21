@@ -12,7 +12,8 @@ def generate_aggregate_response(arguments, results, question=None):
     Generate mathematically reliable explanations
     for aggregation results using Python.
 
-    Supports both highest and lowest questions.
+    Supports both highest and lowest questions, as well as
+    overall single-metric and multi-metric aggregations without grouping.
     """
 
     if not isinstance(results, list) or not results:
@@ -21,10 +22,51 @@ def generate_aggregate_response(arguments, results, question=None):
             "key_findings": []
         }
 
-    group_column = arguments["group_column"]
-    target_column = arguments["target_column"]
-    operation = arguments["operation"]
+    group_column = arguments.get("group_column")
+    target_column = arguments.get("target_column") or group_column
+    operation = arguments.get("operation", "sum")
 
+    def format_value(value):
+        if isinstance(value, (int, float)):
+            return f"{value:,.2f}"
+        return str(value)
+
+    # --------------------------------------------------
+    # CASE 1: Overall aggregation (no group_column)
+    # --------------------------------------------------
+    if not group_column or group_column == target_column:
+        op_label = "total" if operation == "sum" else ("average" if operation == "mean" else f"overall {operation}")
+
+        # Multiple metrics in one tool result (target_column was a list)
+        if len(results) > 1 and all("target_column" in r for r in results):
+            summaries = []
+            findings = []
+            for r in results:
+                col = r["target_column"]
+                val = format_value(r.get("result"))
+                summaries.append(f"The {op_label} {col} is {val}.")
+                findings.append(f"{op_label.capitalize()} {col}: {val}.")
+            return {
+                "summary": " ".join(summaries),
+                "key_findings": findings
+            }
+
+        selected = results[0]
+        val = selected.get("result")
+        if val is None and isinstance(target_column, str) and target_column in selected:
+            val = selected[target_column]
+
+        val_str = format_value(val)
+        summary = f"The {op_label} {target_column} is {val_str}."
+        key_findings = [f"{op_label.capitalize()} {target_column}: {val_str}."]
+        return {
+            "summary": summary,
+            "key_findings": key_findings
+        }
+
+    # --------------------------------------------------
+    # CASE 2: Grouped aggregation (existing ranking logic)
+    # --------------------------------------------------
     # Determine whether the user wants the highest or lowest.
     question_text = (question or "").lower()
 
@@ -92,12 +134,6 @@ def generate_aggregate_response(arguments, results, question=None):
         valid_results,
         key=lambda item: item["result"]
     )
-
-    def format_value(value):
-        if isinstance(value, (int, float)):
-            return f"{value:,.2f}"
-
-        return str(value)
 
     summary = (
         f"{selected_group} has the {ranking} "

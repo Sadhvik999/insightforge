@@ -296,6 +296,8 @@ def run_manager(
             "When the user explicitly asks for both numerical analysis/calculation and a chart "
             "(e.g. calculate values and create a chart), you MUST execute the appropriate "
             "analytical tool and also call visualize_data. "
+            "When the user asks for multiple numerical metrics (such as total sales and total profit, "
+            "or average sales and average profit), you MUST execute aggregate_data for each requested metric. "
             "You are strictly prohibited from stating or claiming that a chart, plot, "
             "or calculation was created or completed unless the corresponding tool "
             "was actually executed during the current turn. "
@@ -450,14 +452,25 @@ def run_manager(
                     }
             llm_tool_output = _sanitize_recursive(tool_output)
             if function_name == "aggregate_data" and isinstance(tool_output.get("result"), list):
-                target_col = arguments.get("target_column")
-                if target_col:
+                target_col = arguments.get("target_column") or arguments.get("group_column")
+                if isinstance(target_col, str):
                     renamed_records = []
                     for row in tool_output["result"]:
                         if isinstance(row, dict) and "result" in row:
                             new_row = row.copy()
                             new_row[target_col] = new_row.pop("result")
                             renamed_records.append(new_row)
+                        else:
+                            renamed_records.append(row)
+                    llm_tool_output = {
+                        "success": tool_output.get("success", True),
+                        "result": renamed_records
+                    }
+                elif isinstance(target_col, list):
+                    renamed_records = []
+                    for row in tool_output["result"]:
+                        if isinstance(row, dict) and "target_column" in row and "result" in row:
+                            renamed_records.append({row["target_column"]: row["result"]})
                         else:
                             renamed_records.append(row)
                     llm_tool_output = {
